@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:complexType name="GurultuKaristirmaParamsType">
+    <xs:sequence>
+      <xs:element name="Tur" type="xs:string"/>
+      <xs:element name="BantGenisligiMHz" type="xs:float" minOccurs="0"/>
+      <xs:element name="GucErpDbw" type="xs:float" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="MenzilAldatmaParamsType">
+    <xs:sequence>
+      <xs:element name="TeknikTipi" type="xs:string"/>
+      <xs:element name="CekmeHiziMps" type="xs:float" minOccurs="0"/>
+      <xs:element name="SahteHedefSayisi" type="xs:integer" minOccurs="0"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="BaseParamsType" />
+
+  <xs:element name="Teknikler">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Teknik" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="Adi" type="xs:string"/>
+              <xs:element name="Kategori" type="xs:string"/>
+              <xs:element name="Aciklama" type="xs:string" minOccurs="0"/>
+              <xs:element name="Parametreler">
+                <xs:complexType>
+                  <xs:choice>
+                    <xs:element name="GurultuKaristirmaParams" type="GurultuKaristirmaParamsType"/>
+                    <xs:element name="MenzilAldatmaParams" type="MenzilAldatmaParamsType"/>
+                    <xs:element name="BaseTeknikParametreleri" type="BaseParamsType"/>
+                  </xs:choice>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+            <xs:attribute name="id" type="xs:string" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
