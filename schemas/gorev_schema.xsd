@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+  <xs:complexType name="SenaryoIDListType">
+    <xs:sequence>
+      <xs:element name="SenaryoID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:element name="Gorevler">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="Gorev" minOccurs="0" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="Adi" type="xs:string"/>
+              <xs:element name="OlusturmaTarihiIso" type="xs:date"/>
+              <xs:element name="SorumluPersonel" type="xs:string" minOccurs="0"/>
+              <xs:element name="Aciklama" type="xs:string" minOccurs="0"/>
+              <xs:element name="SenaryoIdList" type="SenaryoIDListType"/>
+            </xs:sequence>
+            <xs:attribute name="id" type="xs:string" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

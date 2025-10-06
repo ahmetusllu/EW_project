@@ -10,11 +10,11 @@
               <xs:element name="TarihIso" type="xs:date"/>
               <xs:element name="Konum" type="xs:string" minOccurs="0"/>
               <xs:element name="Amac" type="xs:string" minOccurs="0"/>
-              <xs:element name="RadarID" type="xs:string" minOccurs="0"/>
-              <xs:element name="TeknikIDList">
+              <xs:element name="RadarId" type="xs:string" minOccurs="0"/>
+              <xs:element name="TeknikIdList">
                 <xs:complexType>
                   <xs:sequence>
-                    <xs:element name="TeknikID" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+                    <xs:element name="TeknikId" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
                   </xs:sequence>
                 </xs:complexType>
               </xs:element>

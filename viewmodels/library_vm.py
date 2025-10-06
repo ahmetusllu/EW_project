@@ -1,64 +1,72 @@
-
 # ew_platformasi/viewmodels/library_vm.py
 
-from PySide6.QtCore import QObject, Signal, QSortFilterProxyModel, Qt # <-- ADD Qt HERE
+from PySide6.QtCore import QObject, Signal, QSortFilterProxyModel, Qt
 from core.data_manager import DataManager
 from core.models import RadarTableModel, TeknikTableModel
-from core.data_models import Radar, Teknik
+from core.data_models import Radar, Teknik, Senaryo
+
 
 class LibraryViewModel(QObject):
+    status_updated = Signal(str)
+
     def __init__(self, data_manager: DataManager):
         super().__init__()
         self._data_manager = data_manager
+        self._data_manager.status_updated.connect(self.status_updated)
 
-        # 1. Asıl veri modellerini oluştur
         self._radars_source_model = RadarTableModel()
-        self._teknikler_source_model = TeknikTableModel()
-
-        # 2. Arayüzde kullanılacak olan Filtre/Sıralama Proxy Modellerini oluştur
         self.radars_proxy_model = QSortFilterProxyModel()
         self.radars_proxy_model.setSourceModel(self._radars_source_model)
         self.radars_proxy_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
-        self.radars_proxy_model.setFilterKeyColumn(-1)  # Tüm sütunlarda ara
+        self.radars_proxy_model.setFilterKeyColumn(-1)
 
+        self._teknikler_source_model = TeknikTableModel()
         self.teknikler_proxy_model = QSortFilterProxyModel()
         self.teknikler_proxy_model.setSourceModel(self._teknikler_source_model)
         self.teknikler_proxy_model.setFilterCaseSensitivity(Qt.CaseInsensitive)
-        self.teknikler_proxy_model.setFilterKeyColumn(-1)  # Tüm sütunlarda ara
+        self.teknikler_proxy_model.setFilterKeyColumn(-1)
 
-        # DataManager'dan gelen sinyalleri dinle ve asıl modelleri güncelle
         self._data_manager.radarlar_changed.connect(self._update_radars_model)
         self._data_manager.teknikler_changed.connect(self._update_teknikler_model)
 
-        # İlk veriyi yükle
         self._update_radars_model()
         self._update_teknikler_model()
 
     def _update_radars_model(self):
-        """DataManager'dan en güncel radar listesini alıp asıl modeli besler."""
         self._radars_source_model.refresh_data(self._data_manager.radarlar)
 
     def _update_teknikler_model(self):
-        """DataManager'dan en güncel teknik listesini alıp asıl modeli besler."""
         self._teknikler_source_model.refresh_data(self._data_manager.teknikler)
 
     def set_radar_filter(self, text: str):
-        """Radar tablosu için filtre metnini ayarlar."""
         self.radars_proxy_model.setFilterFixedString(text)
 
     def set_teknik_filter(self, text: str):
-        """Teknik tablosu için filtre metnini ayarlar."""
         self.teknikler_proxy_model.setFilterFixedString(text)
 
     def get_item_from_proxy_index(self, proxy_index, proxy_model):
-        """Proxy model index'inden asıl veri nesnesini alır."""
         source_index = proxy_model.mapToSource(proxy_index)
-        source_model = proxy_model.sourceModel()
-        return source_model.get_item_by_index(source_index)
+        return proxy_model.sourceModel().get_item_by_index(source_index)
 
     def save_item(self, item):
         self._data_manager.save_item(item)
 
     def delete_item(self, item):
-        item_id = getattr(item, f"{item.__class__.__name__.lower()}_id")
+        item_id = getattr(item, f"{type(item).__name__.lower()}_id")
         self._data_manager.delete_item_by_id(item_id, type(item))
+
+    def duplicate_item(self, item):
+        self._data_manager.duplicate_item(item)
+
+    def get_senaryos_for_radar(self, radar_id: str) -> list[Senaryo]:
+        return [s for s in self._data_manager.senaryolar if s.radar_id == radar_id]
+
+    # --- BU FONKSİYON EKSİKTİ ---
+    def item_exists(self, item_id: str, item_type: type) -> bool:
+        """Verilen ID ve tipe sahip bir öğenin var olup olmadığını kontrol eder."""
+        list_ref, _, _ = self._data_manager._get_list_ref(item_type)
+        if list_ref is None:
+            return False
+
+        id_field = f"{item_type.__name__.lower()}_id"
+        return any(getattr(item, id_field) == item_id for item in list_ref)
