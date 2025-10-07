@@ -11,7 +11,7 @@ from PySide6.QtCore import QObject, Signal
 
 from core.data_models import (
     Teknik, Radar, Senaryo, Gorev, BaseTeknikParametreleri, GurultuKaristirmaParams, MenzilAldatmaParams,
-    AlmacGondermecAyarParametreleri, KaynakUretecAyarParametreleri,
+    AlmacGondermecAyarParametreleri, KaynakUretecAyarParametreleri, TeknikUygulama,
     TEKNIKLER_XML, RADARLAR_XML, SENARYOLAR_XML, GOREVLER_XML,
     TEKNIKLER_XSD, RADARLAR_XSD, SENARYOLAR_XSD, GOREVLER_XSD, DATA_DIR
 )
@@ -96,7 +96,6 @@ class DataManager(QObject):
             self.new_workspace()
             self.status_updated.emit(f"Hata: Veri seti yüklenemedi - {e}")
 
-    # --- YENİ EKLENEN METOTLAR ---
     def export_teknikler_to_xml(self, teknikler: List[Teknik], path: str):
         """Verilen teknik listesini belirtilen yola XML olarak kaydeder."""
         try:
@@ -124,35 +123,29 @@ class DataManager(QObject):
                 item = self._element_to_dataclass(elem, Teknik)
                 imported_teknikler.append(item)
 
-            # Mevcut teknik ID'lerini kontrol et
             existing_ids = {t.teknik_id for t in self.teknikler}
             new_teknikler = []
             updated_count = 0
 
             for teknik in imported_teknikler:
                 if teknik.teknik_id in existing_ids:
-                    # ID çakışması durumunda mevcut olanı güncelle
                     self.save_item(teknik)
                     updated_count += 1
                 else:
-                    # Yeni ID ise listeye ekle
                     new_teknikler.append(teknik)
 
             if new_teknikler:
                 self.teknikler.extend(new_teknikler)
 
-            # Değişiklikleri kaydet ve sinyal gönder
             if new_teknikler or updated_count > 0:
                 self.teknikler_changed.emit()
                 self.status_updated.emit(
                     f"'{os.path.basename(path)}' dosyasından {len(new_teknikler)} yeni teknik eklendi, {updated_count} teknik güncellendi.")
 
-            return imported_teknikler  # Geriye ne okuduğumuzu döndürelim, viewmodel için faydalı olabilir
+            return imported_teknikler
         except Exception as e:
             self.status_updated.emit(f"Hata: Teknikler içe aktarılamadı - {e}")
             return []
-
-    # ------------------------------
 
     def _emit_all_changed_signals(self):
         self.radarlar_changed.emit()
@@ -175,10 +168,12 @@ class DataManager(QObject):
                     param_cls_name = param_element.tag
                     param_cls = self._param_class_map.get(param_cls_name, BaseTeknikParametreleri)
                     data[field_info.name] = self._element_to_dataclass(param_element, param_cls)
-            elif field_info.name == "teknik_id_list":
-                data[field_info.name] = [item.text for item in child_element.findall("TeknikID")]
             elif field_info.name == "senaryo_id_list":
                 data[field_info.name] = [item.text for item in child_element.findall("SenaryoID")]
+            # YENİ: `uygulanan_teknikler` listesini işlemek için
+            elif field_info.name == "uygulanan_teknikler":
+                data[field_info.name] = [self._element_to_dataclass(item, TeknikUygulama)
+                                         for item in child_element.findall("TeknikUygulama")]
             else:
                 text_val = child_element.text
                 if text_val is not None and text_val != 'None':
@@ -208,7 +203,7 @@ class DataManager(QObject):
         class_name = instance.__class__.__name__
         id_field_name = f"{class_name.lower()}_id"
         attribs = {}
-        if hasattr(instance, id_field_name):
+        if hasattr(instance, id_field_name) and getattr(instance, id_field_name):
             attribs["id"] = getattr(instance, id_field_name)
 
         element = ET.Element(class_name, attrib=attribs)
@@ -223,15 +218,16 @@ class DataManager(QObject):
             if is_dataclass(value):
                 child_element.append(self._dataclass_to_element(value))
             elif isinstance(value, list):
-                if field_info.name == "teknik_id_list":
-                    for item in value: ET.SubElement(child_element, "TeknikID").text = str(item)
-                elif field_info.name == "senaryo_id_list":
+                # YENİ: Liste elemanlarının dataclass olup olmadığını kontrol et
+                if field_info.name == "senaryo_id_list":
                     for item in value: ET.SubElement(child_element, "SenaryoID").text = str(item)
+                elif field_info.name == "uygulanan_teknikler":
+                    for item in value:
+                        child_element.append(self._dataclass_to_element(item))
             elif value is not None:
                 child_element.text = str(value)
         return element
 
-    # ... Geri kalan metodlar aynı ...
     def _validate_xml(self, xml_path: str, xsd_path: str) -> bool:
         if not os.path.exists(xsd_path): return True
         try:
@@ -244,67 +240,42 @@ class DataManager(QObject):
             self.status_updated.emit(f"XML doğrulama hatası: {e}")
             return False
 
-    def _load_all(self, xml_path: str, xsd_path: str, item_tag: str, cls: Type[T]) -> List[T]:
-        if not os.path.exists(xml_path) or not self._validate_xml(xml_path, xsd_path):
-            return []
-        try:
-            tree = ET.parse(xml_path)
-            return [self._element_to_dataclass(el, cls) for el in tree.getroot().findall(item_tag)]
-        except ET.ParseError as e:
-            self.status_updated.emit(f"XML okuma hatası: {xml_path} - {e}")
-            return []
-
-    def _save_all(self, data_list: List, xml_path: str, xsd_path: str, root_tag: str):
-        root = ET.Element(root_tag)
-        for item in data_list:
-            root.append(self._dataclass_to_element(item))
-
-        temp_path = xml_path + ".tmp"
-        tree = ET.ElementTree(root)
-        ET.indent(tree, space="  ", level=0)
-        tree.write(temp_path, encoding="utf-8", xml_declaration=True)
-
-        if self._validate_xml(temp_path, xsd_path):
-            os.replace(temp_path, xml_path)
-        else:
-            self.status_updated.emit(f"HATA: {xml_path} şemaya uymuyor. Kayıt iptal edildi.")
-            os.remove(temp_path)
-
     def _get_list_ref(self, item_type: Type[T]):
         if item_type is Radar:
-            return self.radarlar, lambda: self._save_all(self.radarlar, RADARLAR_XML, RADARLAR_XSD,
-                                                         "Radarlar"), self.radarlar_changed
+            return self.radarlar, self.radarlar_changed
         elif item_type is Teknik:
-            return self.teknikler, lambda: self._save_all(self.teknikler, TEKNIKLER_XML, TEKNIKLER_XSD,
-                                                          "Teknikler"), self.teknikler_changed
+            return self.teknikler, self.teknikler_changed
         elif item_type is Senaryo:
-            return self.senaryolar, lambda: self._save_all(self.senaryolar, SENARYOLAR_XML, SENARYOLAR_XSD,
-                                                           "Senaryolar"), self.senaryolar_changed
+            return self.senaryolar, self.senaryolar_changed
         elif item_type is Gorev:
-            return self.gorevler, lambda: self._save_all(self.gorevler, GOREVLER_XML, GOREVLER_XSD,
-                                                         "Gorevler"), self.gorevler_changed
-        return None, None, None
+            return self.gorevler, self.gorevler_changed
+        return None, None
 
     def save_item(self, item):
-        list_ref, _, signal = self._get_list_ref(type(item))
+        list_ref, signal = self._get_list_ref(type(item))
         if list_ref is None: return
 
         id_field = f"{type(item).__name__.lower()}_id"
         item_id = getattr(item, id_field, None)
 
-        if item_id is None:
-            item_id = str(uuid.uuid4())
-            setattr(item, id_field, item_id)
-
-        idx = next((i for i, x in enumerate(list_ref) if getattr(x, id_field) == item_id), None)
-        if idx is not None:
-            list_ref[idx] = item
-        else:
+        if not item_id or not self.item_exists(item_id, type(item)):
+            if not item_id:
+                setattr(item, id_field, str(uuid.uuid4()))
             list_ref.append(item)
+        else:
+            idx = next((i for i, x in enumerate(list_ref) if getattr(x, id_field) == item_id), None)
+            if idx is not None:
+                list_ref[idx] = item
         signal.emit()
 
+    def item_exists(self, item_id: str, item_type: Type[T]) -> bool:
+        list_ref, _ = self._get_list_ref(item_type)
+        if list_ref is None: return False
+        id_field = f"{item_type.__name__.lower()}_id"
+        return any(getattr(item, id_field) == item_id for item in list_ref)
+
     def delete_item_by_id(self, item_id: str, item_type: Type[T]):
-        list_ref, _, signal = self._get_list_ref(item_type)
+        list_ref, signal = self._get_list_ref(item_type)
         if list_ref is None: return
         id_field = f"{item_type.__name__.lower()}_id"
         original_len = len(list_ref)
@@ -331,7 +302,7 @@ class DataManager(QObject):
             return
 
         related_senaryos = [s for s in self.senaryolar if s.senaryo_id in gorev.senaryo_id_list]
-        related_teknik_ids = {tid for s in related_senaryos for tid in s.teknik_id_list}
+        related_teknik_ids = {uygulama.teknik_id for s in related_senaryos for uygulama in s.uygulanan_teknikler}
         related_tekniks = [t for t in self.teknikler if t.teknik_id in related_teknik_ids]
 
         root = ET.Element("EHGorevPaketi")
@@ -365,15 +336,8 @@ class DataManager(QObject):
                 item = self._element_to_dataclass(gorev_elem, Gorev)
                 if item.gorev_id not in existing_gorev_ids: self.gorevler.append(item)
 
-            self._save_all(self.teknikler, TEKNIKLER_XML, TEKNIKLER_XSD, "Teknikler")
-            self._save_all(self.senaryolar, SENARYOLAR_XML, SENARYOLAR_XSD, "Senaryolar")
-            self._save_all(self.gorevler, GOREVLER_XML, GOREVLER_XSD, "Gorevler")
-
-            self.teknikler_changed.emit()
-            self.senaryolar_changed.emit()
-            self.gorevler_changed.emit()
-
-            self.status_updated.emit(f"Görev paketi '{path}' dosyasından başarıyla içe aktarıldı.")
+            self._emit_all_changed_signals()
+            self.status_updated.emit(f"Görev paketi '{os.path.basename(path)}' dosyasından başarıyla içe aktarıldı.")
         except Exception as e:
             self.status_updated.emit(f"Hata: Görev paketi içe aktarılamadı - {e}")
 

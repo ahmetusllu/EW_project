@@ -88,7 +88,7 @@ class Teknik:
 class Radar:
     radar_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     adi: str = "Yeni Radar"
-    elnot: str = ""  # YENİ EKLENDİ
+    elnot: str = ""
     uretici: str = ""
     frekans_bandi: str = FREKANS_BANDLARI[0]
     gorev_tipi: str = GOREV_TIPLERI[0]
@@ -102,16 +102,23 @@ class Radar:
     notlar: str = ""
 
 @dataclass
+class TeknikUygulama:
+    """Senaryo içinde bir tekniğin uygulanma sırasını ve süresini tutar."""
+    sira: int = 1
+    teknik_id: str = ""
+    sure_sn: float = 0.0
+
+@dataclass
 class Senaryo:
     senaryo_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     adi: str = "Yeni Senaryo"
     tarih_iso: str = "2025-01-01"
     konum: str = ""
     amac: str = ""
-    et_sistem_ismi: str = ""  # YENİ EKLENDİ
-    manevra: bool = False      # YENİ EKLENDİ
+    et_sistem_ismi: str = ""
+    manevra: bool = False
     radar_id: Optional[str] = None
-    teknik_id_list: List[str] = field(default_factory=list)
+    uygulanan_teknikler: List[TeknikUygulama] = field(default_factory=list) # DEĞİŞTİ
     sonuc_nitel: str = SONUC_NITEL[0]
     js_db: Optional[float] = None
     mesafe_km: Optional[float] = None

@@ -45,10 +45,9 @@ class BaseTableModel(QAbstractTableModel):
 class RadarTableModel(BaseTableModel):
     def __init__(self, data: List[Radar] = None):
         super().__init__(data)
-        self._headers = ["Adı", "ELNOT", "Üretici", "Bant", "Görev Tipi"] # GÜNCELLENDİ
+        self._headers = ["Adı", "ELNOT", "Üretici", "Bant", "Görev Tipi"]
 
     def get_display_data(self, item: Radar, column: int) -> str:
-        # GÜNCELLENDİ
         return [item.adi, item.elnot, item.uretici, item.frekans_bandi, item.gorev_tipi][column]
 
 
@@ -89,7 +88,7 @@ class GorevSenaryoTableModel(QAbstractTableModel):
         self._data = data or []
         self._radar_map = radar_map or {}
         self._teknik_map = teknik_map or {}
-        self._headers = ["Senaryo Adı", "Hedef Radar", "Uygulanan EKT'ler", "Sonuç"]
+        self._headers = ["Senaryo Adı", "Hedef Radar", "Uygulanan EKT'ler (Sıra, Süre)", "Sonuç"]
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         if role == Qt.ItemDataRole.DisplayRole:
@@ -100,8 +99,14 @@ class GorevSenaryoTableModel(QAbstractTableModel):
             if col == 1:
                 return self._radar_map.get(senaryo.radar_id, "Bilinmiyor")
             if col == 2:
-                teknik_names = [self._teknik_map.get(tid, "Bilinmeyen Teknik") for tid in senaryo.teknik_id_list]
-                return ", ".join(teknik_names)
+                # GÜNCELLENDİ: Teknikleri sırası ve süresiyle birlikte göster
+                teknik_strings = []
+                # Teknikleri sırasına göre sırala
+                sorted_uygulamalar = sorted(senaryo.uygulanan_teknikler, key=lambda u: u.sira)
+                for uygulama in sorted_uygulamalar:
+                    teknik_adi = self._teknik_map.get(uygulama.teknik_id, "Bilinmeyen Teknik")
+                    teknik_strings.append(f"{uygulama.sira}. {teknik_adi} ({uygulama.sure_sn}sn)")
+                return ", ".join(teknik_strings) if teknik_strings else "Teknik Yok"
             if col == 3:
                 return senaryo.sonuc_nitel
         return None
