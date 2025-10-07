@@ -1,171 +1,108 @@
 import os
 import random
-from datetime import date, timedelta
+from datetime import date
 
-# Önemli: Bu betiği çalıştırmadan önce, core paketinin Python tarafından
-# bulunabildiğinden emin olun. Genellikle betiği projenin kök dizininden
-# çalıştırmak yeterlidir.
 from core.data_models import (
     Radar, Teknik, Senaryo, Gorev,
-    GurultuKaristirmaParams, MenzilAldatmaParams, AlmacGondermecAyarParametreleri, KaynakUretecAyarParametreleri,
-    FREKANS_BANDLARI, GOREV_TIPLERI, ANTEN_TIPLERI, TEKNIK_KATEGORILERI, SONUC_NITEL
+    GurultuKaristirmaParams, MenzilAldatmaParams,
+    SONUC_NITEL, DARBE_MODULASYONLARI
 )
 from core.data_manager import DataManager
 
 
-def generate_test_data():
+def generate_comprehensive_test_data():
     """
-    Uygulama için test verileri oluşturur ve XML dosyalarına kaydeder.
+    Uygulamanın tüm özelliklerini test etmek için kapsamlı ve ilişkisel
+    bir test veri seti oluşturur.
     """
-    print("Test verileri oluşturuluyor...")
+    print("Kapsamlı test veri seti oluşturuluyor...")
 
-    # --- 1. Radarları Oluştur (10 Adet) ---
+    # --- Radarlar ---
+    # Radar_A: Faaliyet geçmişi dolu olan ana test radarı
+    # Radar_B: Faaliyet geçmişi daha az olan radar
+    # Radar_C: Hiç faaliyeti olmayan, silme ve düzenleme testi için radar
     radarlar = [
-        Radar(adi="ASELSAN Kalkan-G", uretici="ASELSAN", frekans_bandi="X", gorev_tipi="Atış Kontrol",
-              anten_tipi="AESA"),
-        Radar(adi="TAI Gözcü-S", uretici="TAI", frekans_bandi="S", gorev_tipi="Arama", anten_tipi="PESA"),
-        Radar(adi="Meteksan MİLDAR", uretici="Meteksan", frekans_bandi="Ka", gorev_tipi="Atış Kontrol",
-              anten_tipi="Parabolik"),
-        Radar(adi="HAVELSAN EİRS", uretici="HAVELSAN", frekans_bandi="L", gorev_tipi="Erken Uyarı", anten_tipi="AESA"),
-        Radar(adi="Thales SMART-L", uretici="Thales", frekans_bandi="L", gorev_tipi="Erken Uyarı", anten_tipi="ESA"),
-        Radar(adi="Raytheon AN/SPY-6", uretici="Raytheon", frekans_bandi="S", gorev_tipi="Hava Savunma",
-              anten_tipi="AESA"),
-        Radar(adi="SAAB Giraffe 4A", uretici="SAAB", frekans_bandi="S", gorev_tipi="Arama", anten_tipi="AESA"),
-        Radar(adi="IAI EL/M-2080 Green Pine", uretici="IAI", frekans_bandi="L", gorev_tipi="Atış Kontrol",
-              anten_tipi="AESA"),
-        Radar(adi="NPP Salyut 30N6E", uretici="NPP Salyut", frekans_bandi="X", gorev_tipi="İzleme", anten_tipi="PESA"),
-        Radar(adi="Lockheed Martin AN/TPQ-53", uretici="Lockheed Martin", frekans_bandi="S", gorev_tipi="Arama",
-              anten_tipi="AESA"),
+        Radar(adi="AN/SPY-1D(V) AEGIS", uretici="Lockheed Martin", frekans_bandi="S", gorev_tipi="Hava Savunma",
+              anten_tipi="PESA", pw_us=50.0, prf_hz=1000.0, erp_dbw=90.0,
+              darbe_modulasyonu="Faz Kodlu (Barker, Frank vb.)"),
+        Radar(adi="Thales APAR", uretici="Thales", frekans_bandi="X", gorev_tipi="Atış Kontrol", anten_tipi="AESA",
+              pw_us=2.0, prf_hz=4000.0, erp_dbw=70.0, darbe_modulasyonu="Normal Darbe (CW)"),
+        Radar(adi="Hensoldt TRS-3D", uretici="Hensoldt", frekans_bandi="C", gorev_tipi="Arama", anten_tipi="PESA",
+              pw_us=15.0, prf_hz=2200.0, erp_dbw=82.0),
     ]
-    radar_ids = [r.radar_id for r in radarlar]
+    radar_map = {r.adi: r.radar_id for r in radarlar}
 
-    # --- 2. EH Tekniklerini Oluştur (20 Adet) ---
+    # --- Teknikler ---
+    # Birkaç farklı kategoriden, senaryolarda kullanılacak teknikler
     teknikler = [
-        Teknik(adi="Yoğun Sis Perdesi", kategori="Gürültü Karıştırma",
-               parametreler=GurultuKaristirmaParams(tur="Barrage", bant_genisligi_mhz=100.0, guc_erp_dbw=50.0)),
-        Teknik(adi="Noktasal Karartma", kategori="Gürültü Karıştırma",
-               parametreler=GurultuKaristirmaParams(tur="Spot", bant_genisligi_mhz=10.0, guc_erp_dbw=65.0)),
-        Teknik(adi="DRFM Tabanlı Gürültü", kategori="Gürültü Karıştırma",
-               parametreler=GurultuKaristirmaParams(tur="DRFM Noise", bant_genisligi_mhz=50.0, guc_erp_dbw=55.0)),
-        Teknik(adi="Süpürmeli Gürültü", kategori="Gürültü Karıştırma",
-               parametreler=GurultuKaristirmaParams(tur="Swept", bant_genisligi_mhz=20.0, guc_erp_dbw=60.0)),
-
-        Teknik(adi="Hassas RGPO Menzil Çekmesi", kategori="Menzil Aldatma",
-               parametreler=MenzilAldatmaParams(teknik_tipi="RGPO", cekme_hizi_mps=1500.0, sahte_hedef_sayisi=1)),
-        Teknik(adi="Çoklu Sahte Hedef (RGPI)", kategori="Menzil Aldatma",
-               parametreler=MenzilAldatmaParams(teknik_tipi="RGPI", sahte_hedef_sayisi=8)),
-        Teknik(adi="Mesafe Kapısı İleri Çekme", kategori="Menzil Aldatma",
-               parametreler=MenzilAldatmaParams(teknik_tipi="RGPI", cekme_hizi_mps=500.0, sahte_hedef_sayisi=2)),
-
-        Teknik(adi="Yüksek Kazançlı RF Ayarı", kategori="Alıcı/Gönderici Ayarları",
-               parametreler=AlmacGondermecAyarParametreleri(rf_kazanc_db=70.0, gonderici_guc_dbm=30.0)),
-        Teknik(adi="Geniş Bant Örnekleme Modu", kategori="Alıcı/Gönderici Ayarları",
-               parametreler=AlmacGondermecAyarParametreleri(on_ornekleme_frekansi_ghz=20.0, modulasyon_tipi="64-QAM")),
-        Teknik(adi="Otomatik Kazanç Kontrol Kapatma", kategori="Alıcı/Gönderici Ayarları",
-               parametreler=AlmacGondermecAyarParametreleri(otomatik_kazanc_kontrolu_aktif=False, if_kazanc_db=40.0)),
-
-        Teknik(adi="Hızlı Frekans Atlamalı Sinyal", kategori="Kaynak Üreteç Ayarları",
-               parametreler=KaynakUretecAyarParametreleri(baslangic_frekansi_mhz=8000.0, bitis_frekansi_mhz=12000.0,
-                                                          tarama_suresi_ms=10.0)),
-        Teknik(adi="Kısa Darbe Modülasyonu", kategori="Kaynak Üreteç Ayarları",
-               parametreler=KaynakUretecAyarParametreleri(dalga_formu_tipi="Darbe", darbe_genisligi_us=0.5,
-                                                          darbe_tekrarlama_araligi_us=100.0)),
-        Teknik(adi="Düşük Faz Gürültülü Osilatör", kategori="Kaynak Üreteç Ayarları",
-               parametreler=KaynakUretecAyarParametreleri(faz_gurultusu_dbc_hz=-110.0)),
-
-        Teknik(adi="Karşı Açı Aldatması", kategori="Açı Aldatması"),
-        Teknik(adi="Yan Hüzme Karıştırması", kategori="Açı Aldatması"),
-
+        Teknik(adi="Geniş Bant Baraj Karıştırma (BBJ)", kategori="Gürültü Karıştırma",
+               parametreler=GurultuKaristirmaParams(tur="Barrage", bant_genisligi_mhz=500.0)),
+        Teknik(adi="Mesafe Kapısı Çekme - Dışarı (RGPO)", kategori="Menzil Aldatma",
+               parametreler=MenzilAldatmaParams(teknik_tipi="RGPO", cekme_hizi_mps=2000.0)),
         Teknik(adi="Hız Kapısı Çekme (VGPO)", kategori="Hız Aldatması"),
-        Teknik(adi="Yanlış Doppler Üretimi", kategori="Hız Aldatması"),
-
-        Teknik(adi="Darbe Tekrarlama Frekansı (PRF) Değişimi", kategori="Diğer"),
-        Teknik(adi="Akıllı Hedef Aldatma", kategori="Diğer"),
-        Teknik(adi="Ağ Merkezli EH Saldırısı", kategori="Diğer"),
+        Teknik(adi="Yan Hüzme Karıştırması (SLJ)", kategori="Açı Aldatması"),
+        Teknik(adi="Harcanabilir Dekoy (Towed Decoy)", kategori="Diğer"),
     ]
-    teknik_ids = [t.teknik_id for t in teknikler]
+    teknik_map = {t.adi: t.teknik_id for t in teknikler}
 
-    # --- 3. Senaryoları Oluştur (10 Adet) ---
-    senaryolar = []
-    today = date.today()
-    for i in range(10):
-        senaryo_tarihi = today - timedelta(days=random.randint(5, 365))
-        secilen_radar_id = random.choice(radar_ids)
-        secilen_teknik_sayisi = random.randint(1, 4)
-        secilen_teknik_idler = random.sample(teknik_ids, secilen_teknik_sayisi)
+    # --- Senaryolar ---
+    # Senaryo 1-3: Radar_A'ya karşı, Görev 1 için
+    # Senaryo 4: Radar_B'ye karşı, Görev 1 için
+    # Senaryo 5: Radar_A'ya karşı, Görev 2 için
+    # Senaryo 6: Hiçbir göreve dahil olmayan, bağımsız senaryo
+    senaryolar = [
+        Senaryo(adi="S-01: AEGIS BBJ Testi", tarih_iso="2024-10-21", radar_id=radar_map["AN/SPY-1D(V) AEGIS"],
+                teknik_id_list=[teknik_map["Geniş Bant Baraj Karıştırma (BBJ)"]], sonuc_nitel="Kısmen Başarılı",
+                js_db=5.0, mesafe_km=150.0),
+        Senaryo(adi="S-02: AEGIS RGPO Testi", tarih_iso="2024-11-05", radar_id=radar_map["AN/SPY-1D(V) AEGIS"],
+                teknik_id_list=[teknik_map["Mesafe Kapısı Çekme - Dışarı (RGPO)"],
+                                teknik_map["Harcanabilir Dekoy (Towed Decoy)"]], sonuc_nitel="Başarılı", js_db=15.0,
+                mesafe_km=80.0),
+        Senaryo(adi="S-03: AEGIS VGPO Başarısız Test", tarih_iso="2024-12-10", radar_id=radar_map["AN/SPY-1D(V) AEGIS"],
+                teknik_id_list=[teknik_map["Hız Kapısı Çekme (VGPO)"]], sonuc_nitel="Başarısız", js_db=-5.0,
+                mesafe_km=100.0),
+        Senaryo(adi="S-04: APAR Yan Hüzme Testi", tarih_iso="2025-01-20", radar_id=radar_map["Thales APAR"],
+                teknik_id_list=[teknik_map["Yan Hüzme Karıştırması (SLJ)"]], sonuc_nitel="Başarılı", js_db=10.0,
+                mesafe_km=40.0),
+        Senaryo(adi="S-05: AEGIS Kombine Aldatma", tarih_iso="2025-02-15", radar_id=radar_map["AN/SPY-1D(V) AEGIS"],
+                teknik_id_list=[teknik_map["Mesafe Kapısı Çekme - Dışarı (RGPO)"],
+                                teknik_map["Hız Kapısı Çekme (VGPO)"]], sonuc_nitel="Değişken", js_db=8.0,
+                mesafe_km=90.0),
+        Senaryo(adi="S-06: Bağımsız TRS-3D Testi", tarih_iso="2025-03-01", radar_id=radar_map["Hensoldt TRS-3D"],
+                teknik_id_list=[teknik_map["Geniş Bant Baraj Karıştırma (BBJ)"]], sonuc_nitel="Kısmen Başarılı",
+                js_db=7.5, mesafe_km=110.0),
+    ]
 
-        s = Senaryo(
-            adi=f"Test Senaryosu-{i + 1:02d}",
-            tarih_iso=senaryo_tarihi.isoformat(),
-            konum=random.choice(["Doğu Akdeniz", "Ege Denizi", "Konya Test Sahası", "Karadeniz Açıkları"]),
-            radar_id=secilen_radar_id,
-            teknik_id_list=secilen_teknik_idler,
-            sonuc_nitel=random.choice(SONUC_NITEL),
-            js_db=round(random.uniform(-5.0, 25.0), 1),
-            mesafe_km=round(random.uniform(20.0, 250.0), 1)
-        )
-        senaryolar.append(s)
-    senaryo_ids = [s.senaryo_id for s in senaryolar]
-
-    # --- 4. Görevleri Oluştur (2 Adet) ---
+    # --- Görevler ---
     gorevler = [
         Gorev(
-            adi="Hava Savunma Radarlarını Test Etme Görevi",
-            sorumlu_personel="Ahmet Yılmaz",
-            aciklama="Çeşitli HSR sistemlerine karşı menzil ve açı aldatma tekniklerinin etkinliği test edilmiştir.",
-            senaryo_id_list=senaryo_ids[:5]  # İlk 5 senaryo bu göreve ait
+            adi="Tatbikat-2025/1 Öz Koruma Faaliyeti",
+            sorumlu_personel="Yzb. Efe Sancak",
+            aciklama="Deniz platformlarına yönelik tehdit radarlarına karşı kendini koruma EKT'lerinin testi.",
+            senaryo_id_list=[senaryolar[0].senaryo_id, senaryolar[1].senaryo_id, senaryolar[2].senaryo_id,
+                             senaryolar[3].senaryo_id]
         ),
         Gorev(
-            adi="Erken Uyarı Sistemlerini Değerlendirme Görevi",
-            sorumlu_personel="Ayşe Kaya",
-            aciklama="Uzun menzilli arama radarlarına karşı uygulanan gürültü karıştırma senaryoları.",
-            senaryo_id_list=senaryo_ids[5:]  # Son 5 senaryo bu göreve ait
+            adi="Operasyon Gözcü-2 Destek Karıştırma",
+            sorumlu_personel="Ütğm. Elif Öztürk",
+            aciklama="Hava unsurlarının güvenliği için düşman hava savunma radarlarına yönelik destek karıştırma.",
+            senaryo_id_list=[senaryolar[4].senaryo_id]
         )
     ]
 
-    # --- 5. Verileri XML Dosyalarına Kaydet ---
-    # Not: Bu kısım, normalde DataManager'ın içindeki _save_all metodunu kullanır.
-    # Burada doğrudan DataManager'ın listelerini doldurup kaydetme işlemini tetikliyoruz.
-
+    # --- Veri Seti Olarak Kaydetme ---
     dm = DataManager()
-
-    # Oluşturulan verileri DataManager'a yükle
     dm.radarlar = radarlar
     dm.teknikler = teknikler
     dm.senaryolar = senaryolar
     dm.gorevler = gorevler
 
-    # DataManager'ın kaydetme metodunu kullanarak dosyaları oluştur
-    # (Bu metotlar private olsa da test betiği için kullanıyoruz)
-    print("radarlar.xml oluşturuluyor...")
-    dm._save_all(dm.radarlar, "data/radarlar.xml", "schemas/radar_schema.xsd", "Radarlar")
+    workspace_filename = "veri_seti_kapsamli_test.xml"
+    dm.save_workspace(workspace_filename)
 
-    print("teknikler.xml oluşturuluyor...")
-    dm._save_all(dm.teknikler, "data/teknikler.xml", "schemas/teknik_schema.xsd", "Teknikler")
-
-    print("senaryolar.xml oluşturuluyor...")
-    dm._save_all(dm.senaryolar, "data/senaryolar.xml", "schemas/senaryo_schema.xsd", "Senaryolar")
-
-    print("gorevler.xml oluşturuluyor...")
-    dm._save_all(dm.gorevler, "data/gorevler.xml", "schemas/gorev_schema.xsd", "Gorevler")
-
-    print("\nTest verileri başarıyla oluşturuldu!")
-    print("Oluşturulan dosyalar: data/radarlar.xml, data/teknikler.xml, data/senaryolar.xml, data/gorevler.xml")
-    print("\nUygulamayı açıp test etmek için bu verileri içeren bir 'Veri Seti' olarak kaydedebilirsiniz.")
-    print("Bunun için önce 'veri_seti.xml' adında bir dosya oluşturalım.")
-
-    # Tüm veriyi tek bir "Veri Seti" dosyası olarak da kaydedelim
-    dm.save_workspace("veri_seti.xml")
-    print("\nTüm veriler 'veri_seti.xml' dosyasına da kaydedildi.")
-    print(
-        "Uygulamayı açtıktan sonra 'Dosya -> Veri Seti Aç...' menüsünden bu dosyayı seçerek tüm verileri yükleyebilirsiniz.")
+    print(f"\nKapsamlı test verileri başarıyla '{workspace_filename}' dosyasına kaydedildi.")
+    print("Uygulamayı açıp 'Dosya -> Veri Seti Aç...' menüsünden bu dosyayı seçerek teste başlayabilirsiniz.")
 
 
 if __name__ == "__main__":
-    # 'data' ve 'schemas' klasörlerinin var olduğundan emin ol
-    if not os.path.exists("data"):
-        os.makedirs("data")
-    if not os.path.exists("schemas"):
-        print("UYARI: 'schemas' klasörü bulunamadı. XML doğrulama yapılmayacak.")
-
-    generate_test_data()
+    generate_comprehensive_test_data()

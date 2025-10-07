@@ -1,7 +1,7 @@
 # ew_platformasi/ui/views/scenario_entry_view.py
 
 import qtawesome as qta
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, Signal
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
                                QLineEdit, QTextEdit, QPushButton, QComboBox, QListWidget,
                                QListWidgetItem, QGroupBox, QDateEdit, QDoubleSpinBox, QMessageBox)
@@ -11,6 +11,8 @@ from core.data_models import Senaryo, SONUC_NITEL
 
 
 class ScenarioEntryView(QWidget):
+    form_saved = Signal()  # Kaydetme başarılı olduğunda bu sinyal gönderilecek
+
     def __init__(self, view_model: ScenarioViewModel, parent=None):
         super().__init__(parent)
         self.vm = view_model
@@ -24,7 +26,7 @@ class ScenarioEntryView(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.form_box = QGroupBox("Yeni Senaryo Kayıt Formu")  # Başlık dinamik olacak
-        self.form_box.setMaximumWidth(800)
+
         form = QFormLayout(self.form_box)
 
         self.in_adi = QLineEdit()
@@ -41,9 +43,13 @@ class ScenarioEntryView(QWidget):
         self.in_mesafe_km.setButtonSymbols(QDoubleSpinBox.ButtonSymbols.NoButtons)
 
         self.in_not = QTextEdit(fixedHeight=100)
+        self.in_konum = QLineEdit()  # Konum alanı eksikti, eklendi.
+        self.in_amac = QTextEdit(fixedHeight=80)  # Amaç alanı eksikti, eklendi.
 
         form.addRow("Senaryo Adı:", self.in_adi)
         form.addRow("Tarih:", self.in_tarih)
+        form.addRow("Konum:", self.in_konum)
+        form.addRow("Amaç:", self.in_amac)
         form.addRow("Hedef Radar:", self.dd_radar)
         form.addRow("Uygulanan Teknikler:", self.list_teknik)
 
@@ -60,11 +66,11 @@ class ScenarioEntryView(QWidget):
         form.addRow("Notlar ve Açıklamalar:", self.in_not)
 
         button_layout = QHBoxLayout()
-        self.btn_kaydet = QPushButton("Kaydet", icon=qta.icon('fa5s.save'))
+        self.btn_kaydet = QPushButton("Kaydet ve Kapat", icon=qta.icon('fa5s.save'))
         self.btn_temizle = QPushButton("Formu Temizle / Yeni Kayıt", icon=qta.icon('fa5s.eraser'))
         button_layout.addStretch()
-        button_layout.addWidget(self.btn_kaydet)
         button_layout.addWidget(self.btn_temizle)
+        button_layout.addWidget(self.btn_kaydet)
 
         layout.addWidget(self.form_box)
         layout.addLayout(button_layout)
@@ -100,11 +106,12 @@ class ScenarioEntryView(QWidget):
         js_db_value = self.in_js_db.value() if self.in_js_db.value() != 0.0 else None
         mesafe_km_value = self.in_mesafe_km.value() if self.in_mesafe_km.value() != 0.0 else None
 
-        # Yeni senaryo nesnesini oluştur
         scenario_data = Senaryo(
-            senaryo_id=self.current_scenario_id,  # Eğer düzenleme ise ID'yi koru, değilse None
+            senaryo_id=self.current_scenario_id,
             adi=self.in_adi.text().strip(),
             tarih_iso=self.in_tarih.date().toString("yyyy-MM-dd"),
+            konum=self.in_konum.text().strip(),
+            amac=self.in_amac.toPlainText().strip(),
             radar_id=self.dd_radar.currentData(),
             teknik_id_list=selected_teknikler,
             sonuc_nitel=self.in_sonuc.currentText(),
@@ -113,10 +120,9 @@ class ScenarioEntryView(QWidget):
             notlar=self.in_not.toPlainText().strip()
         )
 
-        # DataManager'a kaydet/güncelle
         self.vm.save_scenario(scenario_data)
-        QMessageBox.information(self, "Başarılı", f"'{scenario_data.adi}' senaryosu kaydedildi.")
-        self._clear_form()
+        # Formun başarıyla kaydedildiğini ve diyalogun kapanabileceğini bildir.
+        self.form_saved.emit()
 
     def _clear_form(self):
         """Formu temizler ve yeni kayıt moduna geçirir."""
@@ -124,6 +130,8 @@ class ScenarioEntryView(QWidget):
         self.form_box.setTitle("Yeni Senaryo Kayıt Formu")
         self.in_adi.clear()
         self.in_not.clear()
+        self.in_konum.clear()
+        self.in_amac.clear()
         self.in_tarih.setDate(QDate.currentDate())
         self.dd_radar.setCurrentIndex(0)
         self.list_teknik.clearSelection()
@@ -134,22 +142,22 @@ class ScenarioEntryView(QWidget):
 
     def load_scenario_for_edit(self, scenario: Senaryo):
         """Mevcut bir senaryoyu düzenlemek için formu doldurur."""
-        self._clear_form()  # Önce formu temizle
+        self._clear_form()
         self.current_scenario_id = scenario.senaryo_id
         self.form_box.setTitle(f"Senaryo Düzenle: {scenario.adi}")
 
         self.in_adi.setText(scenario.adi)
         self.in_tarih.setDate(QDate.fromString(scenario.tarih_iso, "yyyy-MM-dd"))
+        self.in_konum.setText(scenario.konum)
+        self.in_amac.setPlainText(scenario.amac)
         self.in_not.setPlainText(scenario.notlar)
         self.in_sonuc.setCurrentText(scenario.sonuc_nitel)
         self.in_js_db.setValue(scenario.js_db or 0.0)
         self.in_mesafe_km.setValue(scenario.mesafe_km or 0.0)
 
-        # Radar ComboBox'ını ayarla
         radar_index = self.dd_radar.findData(scenario.radar_id)
         self.dd_radar.setCurrentIndex(radar_index if radar_index != -1 else 0)
 
-        # Teknikler Listesini ayarla
         for i in range(self.list_teknik.count()):
             item = self.list_teknik.item(i)
             if item.data(Qt.ItemDataRole.UserRole) in scenario.teknik_id_list:

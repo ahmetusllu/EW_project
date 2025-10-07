@@ -32,6 +32,15 @@ class LibraryViewModel(QObject):
         self._update_radars_model()
         self._update_teknikler_model()
 
+    def _on_senaryolar_changed(self):
+        """
+        Senaryo verileri değiştiğinde (örn. yeni set yüklendiğinde) çağrılır.
+        Bu viewmodel doğrudan bir senaryo listesi göstermese de, 'Faaliyet Geçmişi'
+        gibi özelliklerin güncel veriye erişmesi için bu sinyali dinlemesi kritik öneme sahiptir.
+        Metodun içi boş olabilir, önemli olan sinyal bağlantısının kurulmasıdır.
+        """
+        pass
+
     def _update_radars_model(self):
         self._radars_source_model.refresh_data(self._data_manager.radarlar)
 

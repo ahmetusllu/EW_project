@@ -10,7 +10,7 @@ from viewmodels.library_vm import LibraryViewModel
 from viewmodels.scenario_vm import ScenarioViewModel
 from viewmodels.gorev_vm import GorevViewModel
 from ui.views.library_view import LibraryView
-from ui.views.scenario_center_view import ScenarioCenterView
+# ScenarioCenterView artık kullanılmayacak
 from ui.views.scenario_entry_view import ScenarioEntryView
 from ui.views.gorev_center_view import GorevCenterView
 from core.data_models import Senaryo
@@ -19,7 +19,7 @@ from core.data_models import Senaryo
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Elektronik Harp Analiz Platformu v2.1")
+        self.setWindowTitle("Elektronik Harp Analiz Platformu v2.2")
         self.resize(1600, 900)
 
         self.current_workspace_path = None
@@ -36,15 +36,11 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         self.tabs = QTabWidget()
 
-        # View'ları oluştururken referanslarını saklayalım
-        self.gorev_center_view = GorevCenterView(self.gorev_vm)
-        self.scenario_center_view = ScenarioCenterView(self.scenario_vm)
-        self.scenario_entry_view = ScenarioEntryView(self.scenario_vm)
+        # Görev Merkezi artık Senaryo VM'i de kullanacak
+        self.gorev_center_view = GorevCenterView(self.gorev_vm, self.scenario_vm)
         self.library_view = LibraryView(self.library_vm)
 
-        self.tabs.addTab(self.gorev_center_view, qta.icon('fa5s.bullseye'), "Görev Merkezi")
-        self.tabs.addTab(self.scenario_center_view, qta.icon('fa5s.archive'), "Senaryo Merkezi")
-        self.tabs.addTab(self.scenario_entry_view, qta.icon('fa5s.pencil-alt'), "Senaryo Kayıt/Düzenleme")
+        self.tabs.addTab(self.gorev_center_view, qta.icon('fa5s.bullseye'), "Görev ve Senaryo Merkezi")
         self.tabs.addTab(self.library_view, qta.icon('fa5s.book'), "Kütüphane Yönetimi")
 
         self.setCentralWidget(self.tabs)
@@ -56,8 +52,8 @@ class MainWindow(QMainWindow):
         self.gorev_vm.status_updated.connect(self.statusBar().showMessage)
         self.data_manager.status_updated.connect(self.statusBar().showMessage)
 
-        # Düzenleme isteği sinyalini yakala
-        self.scenario_vm.edit_scenario_requested.connect(self.handle_edit_request)
+        # Düzenleme sinyali artık doğrudan GorevCenterView içinde yönetilecek.
+        # Bu yüzden MainWindow'daki handle_edit_request metoduna ve bağlantısına gerek kalmadı.
 
     def _create_menu(self):
         menu = self.menuBar()
@@ -121,12 +117,7 @@ class MainWindow(QMainWindow):
         if path:
             self.gorev_vm.import_package(path)
 
-    def handle_edit_request(self, scenario: Senaryo):
-        """Senaryo düzenleme isteğini işler."""
-        # Senaryo Kayıt/Düzenleme sekmesine geç
-        self.tabs.setCurrentWidget(self.scenario_entry_view)
-        # Seçili senaryoyu forma yükle
-        self.scenario_entry_view.load_scenario_for_edit(scenario)
+    # handle_edit_request metodu artık gerekli değil.
 
     def closeEvent(self, event):
         reply = QMessageBox.question(self, 'Çıkış', "Uygulamadan çıkmak istediğinizden emin misiniz?",

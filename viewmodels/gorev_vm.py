@@ -37,6 +37,10 @@ class GorevViewModel(QObject):
     def _update_model(self):
         """Ana görev listesini günceller."""
         self._source_model.refresh_data(self._data_manager.gorevler)
+        # YENİ EKLENEN SATIR:
+        # Ana model sıfırlandığında, detay modeli de temizle.
+        # Bu, arayüzün tutarlı kalmasını ve eski verileri göstermemesini sağlar.
+        self.update_senaryo_details_for_gorev(None)
 
     def set_filter(self, text: str):
         self.proxy_model.setFilterFixedString(text)
