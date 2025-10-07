@@ -45,10 +45,11 @@ class BaseTableModel(QAbstractTableModel):
 class RadarTableModel(BaseTableModel):
     def __init__(self, data: List[Radar] = None):
         super().__init__(data)
-        self._headers = ["Adı", "Üretici", "Bant", "Görev Tipi"]
+        self._headers = ["Adı", "ELNOT", "Üretici", "Bant", "Görev Tipi"] # GÜNCELLENDİ
 
     def get_display_data(self, item: Radar, column: int) -> str:
-        return [item.adi, item.uretici, item.frekans_bandi, item.gorev_tipi][column]
+        # GÜNCELLENDİ
+        return [item.adi, item.elnot, item.uretici, item.frekans_bandi, item.gorev_tipi][column]
 
 
 class TeknikTableModel(BaseTableModel):
@@ -82,10 +83,7 @@ class GorevTableModel(BaseTableModel):
         return ""
 
 
-# --- YENİ EKLENEN TABLO MODELİ ---
 class GorevSenaryoTableModel(QAbstractTableModel):
-    """Görev Merkezi'ndeki detaylı senaryo tablosu için model."""
-
     def __init__(self, data: List[Senaryo] = None, radar_map: Dict = None, teknik_map: Dict = None):
         super().__init__()
         self._data = data or []

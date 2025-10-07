@@ -88,21 +88,17 @@ class Teknik:
 class Radar:
     radar_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     adi: str = "Yeni Radar"
+    elnot: str = ""  # YENİ EKLENDİ
     uretici: str = ""
     frekans_bandi: str = FREKANS_BANDLARI[0]
     gorev_tipi: str = GOREV_TIPLERI[0]
     anten_tipi: str = ANTEN_TIPLERI[0]
-
-    # Mevcut Darbe Parametreleri
-    pw_us: Optional[float] = None  # Pulse Width (µs)
-    prf_hz: Optional[float] = None  # Pulse Repetition Frequency (Hz)
-
-    # --- YENİ EKLENEN ALANLAR ---
-    pri_us: Optional[float] = None  # Pulse Repetition Interval (µs)
-    erp_dbw: Optional[float] = None  # Effective Radiated Power (dBW)
+    pw_us: Optional[float] = None
+    prf_hz: Optional[float] = None
+    pri_us: Optional[float] = None
+    erp_dbw: Optional[float] = None
     darbe_modulasyonu: str = DARBE_MODULASYONLARI[0]
-    darbe_entegrasyonu: str = ""  # Örn: "10-pulse coherent", "non-coherent"
-
+    darbe_entegrasyonu: str = ""
     notlar: str = ""
 
 @dataclass
@@ -112,6 +108,8 @@ class Senaryo:
     tarih_iso: str = "2025-01-01"
     konum: str = ""
     amac: str = ""
+    et_sistem_ismi: str = ""  # YENİ EKLENDİ
+    manevra: bool = False      # YENİ EKLENDİ
     radar_id: Optional[str] = None
     teknik_id_list: List[str] = field(default_factory=list)
     sonuc_nitel: str = SONUC_NITEL[0]
