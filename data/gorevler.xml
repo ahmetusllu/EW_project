@@ -1,12 +1,29 @@
 <?xml version='1.0' encoding='utf-8'?>
 <Gorevler>
-  <Gorev id="dca0e043-af75-4bdd-b0a9-374b8682cce1">
-    <Adi>POD</Adi>
+  <Gorev id="7bc2c77c-38da-42f0-8d53-be72b0a3d0de">
+    <Adi>Hava Savunma Radarlarını Test Etme Görevi</Adi>
     <OlusturmaTarihiIso>2025-10-06</OlusturmaTarihiIso>
-    <SorumluPersonel>Ahmet USLU</SorumluPersonel>
-    <Aciklama />
+    <SorumluPersonel>Ahmet Yılmaz</SorumluPersonel>
+    <Aciklama>Çeşitli HSR sistemlerine karşı menzil ve açı aldatma tekniklerinin etkinliği test edilmiştir.</Aciklama>
     <SenaryoIdList>
-      <SenaryoID>64582095-4411-4b19-b58b-6ed794a67052</SenaryoID>
+      <SenaryoID>0dd8cb5b-b6a5-41e1-82e7-bd715b6f2641</SenaryoID>
+      <SenaryoID>f9f0d828-952a-498c-b1b4-d7f4ea90b660</SenaryoID>
+      <SenaryoID>1abb8da0-78bc-41ed-883f-784bcfef6669</SenaryoID>
+      <SenaryoID>d24e7153-759f-46ba-88ec-0481a262820c</SenaryoID>
+      <SenaryoID>19820895-d3e5-4d10-ad46-42966073bfdd</SenaryoID>
+    </SenaryoIdList>
+  </Gorev>
+  <Gorev id="df4d46d2-76f4-4864-87c1-52c2a9d7bf46">
+    <Adi>Erken Uyarı Sistemlerini Değerlendirme Görevi</Adi>
+    <OlusturmaTarihiIso>2025-10-06</OlusturmaTarihiIso>
+    <SorumluPersonel>Ayşe Kaya</SorumluPersonel>
+    <Aciklama>Uzun menzilli arama radarlarına karşı uygulanan gürültü karıştırma senaryoları.</Aciklama>
+    <SenaryoIdList>
+      <SenaryoID>6ec21e42-db96-4403-b2bb-335de26f66e6</SenaryoID>
+      <SenaryoID>83f7bb07-3b8d-4a53-b6a8-9c13e5ad9a1a</SenaryoID>
+      <SenaryoID>bcaec9e3-d2d4-4a7e-a064-6468f2ed507c</SenaryoID>
+      <SenaryoID>32802e63-50a3-4e35-8334-878e273c24c7</SenaryoID>
+      <SenaryoID>d78f36af-3c79-4fdc-9bd2-eda8bdd092eb</SenaryoID>
     </SenaryoIdList>
   </Gorev>
 </Gorevler>

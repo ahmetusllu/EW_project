@@ -12,6 +12,7 @@ GOREV_TIPLERI = ["Bilinmiyor", "Hava Savunma", "Erken Uyarı", "Atış Kontrol",
 ANTEN_TIPLERI = ["Bilinmiyor", "AESA", "PESA", "Parabolik", "Phased ULA", "ESA"]
 TEKNIK_KATEGORILERI = ["Gürültü Karıştırma", "Menzil Aldatma", "Alıcı/Gönderici Ayarları", "Kaynak Üreteç Ayarları", "Açı Aldatması", "Hız Aldatması", "Diğer"]
 SONUC_NITEL = ["Bilinmiyor", "Başarılı", "Kısmen Başarılı", "Başarısız", "Değişken"]
+DARBE_MODULASYONLARI = ["Bilinmiyor", "Normal Darbe (CW)", "Lineer Frekans Mod. (LFM/Chirp)", "Doğrusal Olmayan FM", "Faz Kodlu (Barker, Frank vb.)", "Frekans Atlamalı (FH)"]
 
 # --- Depo Dosya Yolları ---
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -91,8 +92,17 @@ class Radar:
     frekans_bandi: str = FREKANS_BANDLARI[0]
     gorev_tipi: str = GOREV_TIPLERI[0]
     anten_tipi: str = ANTEN_TIPLERI[0]
-    pw_us: Optional[float] = None
-    prf_hz: Optional[int] = None
+
+    # Mevcut Darbe Parametreleri
+    pw_us: Optional[float] = None  # Pulse Width (µs)
+    prf_hz: Optional[float] = None  # Pulse Repetition Frequency (Hz)
+
+    # --- YENİ EKLENEN ALANLAR ---
+    pri_us: Optional[float] = None  # Pulse Repetition Interval (µs)
+    erp_dbw: Optional[float] = None  # Effective Radiated Power (dBW)
+    darbe_modulasyonu: str = DARBE_MODULASYONLARI[0]
+    darbe_entegrasyonu: str = ""  # Örn: "10-pulse coherent", "non-coherent"
+
     notlar: str = ""
 
 @dataclass

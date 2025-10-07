@@ -1,19 +1,17 @@
 # ew_platformasi/ui/views/gorev_center_view.py
 
 import qtawesome as qta
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QGroupBox,
                                QLineEdit, QTableView, QHeaderView, QLabel, QPushButton,
                                QFileDialog, QMessageBox, QListWidget, QFormLayout, QTextEdit,
-                               QListWidgetItem, QDialog, QDialogButtonBox)
+                               QListWidgetItem, QDialog, QDialogButtonBox, QAbstractItemView)
 from viewmodels.gorev_vm import GorevViewModel
-from core.data_models import Gorev
+from core.data_models import Gorev, Senaryo
 
 
 class SenaryoSelectionDialog(QDialog):
-    """Göreve eklenecek senaryoları seçmek için kullanılan diyalog penceresi."""
-
-    def __init__(self, all_senaryos, pre_selected_ids, parent=None):
+    def __init__(self, all_senaryos: list[Senaryo], pre_selected_ids: list[str], parent=None):
         super().__init__(parent)
         self.setWindowTitle("Senaryo Seçimi")
         self.setMinimumSize(400, 500)
@@ -53,7 +51,6 @@ class GorevCenterView(QWidget):
         layout = QHBoxLayout(self)
         splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Sol Panel: Görev Listesi
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
         self.search_box = QLineEdit(placeholderText="Görev adı veya sorumlu personel ara...")
@@ -66,14 +63,13 @@ class GorevCenterView(QWidget):
         left_layout.addWidget(self.search_box)
         left_layout.addWidget(self.table)
 
-        # Sağ Panel: Görev Detayları
         right_panel = QGroupBox("Görev Detayları")
         self.right_layout = QVBoxLayout(right_panel)
         self._build_form()
 
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
-        splitter.setSizes([700, 500])
+        splitter.setSizes([700, 600])
         layout.addWidget(splitter)
 
     def _build_form(self):
@@ -81,14 +77,20 @@ class GorevCenterView(QWidget):
         self.in_adi = QLineEdit()
         self.in_tarih = QLineEdit(readOnly=True)
         self.in_sorumlu = QLineEdit()
-        self.in_aciklama = QTextEdit()
-        self.in_aciklama.setFixedHeight(100)
-        self.list_senaryolar = QListWidget()
+        self.in_aciklama = QTextEdit(fixedHeight=80)
 
         form.addRow("Görev Adı:", self.in_adi)
         form.addRow("Oluşturma Tarihi:", self.in_tarih)
         form.addRow("Sorumlu Personel:", self.in_sorumlu)
         form.addRow("Açıklama:", self.in_aciklama)
+
+        self.senaryo_table = QTableView()
+        self.senaryo_table.setModel(self.vm.senaryo_details_model)
+        self.senaryo_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.senaryo_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.senaryo_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.senaryo_table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.senaryo_table.setWordWrap(True)
 
         btn_layout = QHBoxLayout()
         self.btn_manage_senaryos = QPushButton("Senaryoları Yönet", icon=qta.icon('fa5s.tasks'))
@@ -97,9 +99,8 @@ class GorevCenterView(QWidget):
 
         self.right_layout.addLayout(form)
         self.right_layout.addWidget(QLabel("<b>Görevin Senaryoları:</b>"))
-        self.right_layout.addWidget(self.list_senaryolar)
+        self.right_layout.addWidget(self.senaryo_table)
         self.right_layout.addLayout(btn_layout)
-        self.right_layout.addStretch()
 
         op_btn_layout = QHBoxLayout()
         self.btn_yeni = QPushButton("Yeni Görev", icon=qta.icon('fa5s.plus-circle'))
@@ -124,7 +125,7 @@ class GorevCenterView(QWidget):
         self.btn_manage_senaryos.clicked.connect(self._manage_senaryos)
 
     def _on_selection_changed(self, selected, deselected):
-        indexes = selected.indexes()
+        indexes = self.table.selectionModel().selectedRows()
         if not indexes:
             self._clear_details()
             return
@@ -137,7 +138,7 @@ class GorevCenterView(QWidget):
         self.in_tarih.setText(gorev.olusturma_tarihi_iso)
         self.in_sorumlu.setText(gorev.sorumlu_personel)
         self.in_aciklama.setPlainText(gorev.aciklama)
-        self._update_senaryo_list(gorev)
+        self.vm.update_senaryo_details_for_gorev(gorev)
 
         self.btn_kaydet.setEnabled(True)
         self.btn_sil.setEnabled(True)
@@ -145,34 +146,27 @@ class GorevCenterView(QWidget):
         self.btn_manage_senaryos.setEnabled(True)
 
     def _clear_details(self):
+        self.table.clearSelection()
         self.current_gorev = None
         self.in_adi.clear()
         self.in_tarih.clear()
         self.in_sorumlu.clear()
         self.in_aciklama.clear()
-        self.list_senaryolar.clear()
-        self.in_adi.setFocus()
+        self.vm.update_senaryo_details_for_gorev(None)
 
         self.btn_kaydet.setEnabled(False)
         self.btn_sil.setEnabled(False)
         self.btn_export.setEnabled(False)
         self.btn_manage_senaryos.setEnabled(False)
 
-    def _update_senaryo_list(self, gorev):
-        self.list_senaryolar.clear()
-        senaryos_in_gorev = self.vm.get_senaryos_for_gorev(gorev)
-        for s in senaryos_in_gorev:
-            self.list_senaryolar.addItem(f"{s.adi} [{s.sonuc_nitel}]")
-
     def _new_gorev(self):
-        self.table.clearSelection()
+        self._clear_details()
         self.current_gorev = Gorev()
         self._populate_details(self.current_gorev)
         self.in_adi.setFocus()
 
     def _save_gorev(self):
         if not self.current_gorev:
-            QMessageBox.warning(self, "Uyarı", "Kaydedilecek bir görev seçili değil.")
             return
         if not self.in_adi.text().strip():
             QMessageBox.warning(self, "Eksik Bilgi", "Görev adı boş olamaz.")
@@ -183,16 +177,17 @@ class GorevCenterView(QWidget):
         self.current_gorev.aciklama = self.in_aciklama.toPlainText().strip()
 
         self.vm.save_item(self.current_gorev)
-        # Tablo seçimini korumak için, kaydettikten sonra yeniden seçtirme yapılabilir.
-        # Şimdilik basit tutuyoruz.
+        self.vm.status_updated.emit(f"'{self.current_gorev.adi}' görevi kaydedildi.")
 
     def _delete_gorev(self):
         if not self.current_gorev: return
         reply = QMessageBox.question(self, "Silme Onayı",
                                      f"'{self.current_gorev.adi}' görevini silmek istediğinizden emin misiniz?")
         if reply == QMessageBox.StandardButton.Yes:
+            gorev_adi = self.current_gorev.adi
             self.vm.delete_item(self.current_gorev)
             self._clear_details()
+            self.vm.status_updated.emit(f"'{gorev_adi}' görevi silindi.")
 
     def _export_package(self):
         if not self.current_gorev: return
@@ -210,6 +205,6 @@ class GorevCenterView(QWidget):
         dialog = SenaryoSelectionDialog(all_senaryos, pre_selected_ids, self)
         if dialog.exec():
             self.current_gorev.senaryo_id_list = dialog.get_selected_ids()
-            self._update_senaryo_list(self.current_gorev)
+            self.vm.update_senaryo_details_for_gorev(self.current_gorev)
             QMessageBox.information(self, "Bilgi",
                                     "Senaryo listesi güncellendi. Değişiklikleri kalıcı hale getirmek için 'Kaydet' butonuna tıklayınız.")

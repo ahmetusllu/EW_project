@@ -11,8 +11,14 @@
               <xs:element name="FrekansBandi" type="xs:string"/>
               <xs:element name="GorevTipi" type="xs:string"/>
               <xs:element name="AntenTipi" type="xs:string"/>
+
               <xs:element name="PwUs" type="xs:float" minOccurs="0"/>
-              <xs:element name="PrfHz" type="xs:integer" minOccurs="0"/>
+              <xs:element name="PrfHz" type="xs:float" minOccurs="0"/>
+              <xs:element name="PriUs" type="xs:float" minOccurs="0"/>
+              <xs:element name="ErpDbw" type="xs:float" minOccurs="0"/>
+              <xs:element name="DarbeModulasyonu" type="xs:string" minOccurs="0"/>
+              <xs:element name="DarbeEntegrasyonu" type="xs:string" minOccurs="0"/>
+
               <xs:element name="Notlar" type="xs:string" minOccurs="0"/>
             </xs:sequence>
             <xs:attribute name="id" type="xs:string" use="required"/>

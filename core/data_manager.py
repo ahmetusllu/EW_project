@@ -37,10 +37,76 @@ class DataManager(QObject):
         }
         self._ensure_data_files_exist()
 
-        self.radarlar: List[Radar] = self._load_all(RADARLAR_XML, RADARLAR_XSD, "Radar", Radar)
-        self.teknikler: List[Teknik] = self._load_all(TEKNIKLER_XML, TEKNIKLER_XSD, "Teknik", Teknik)
-        self.senaryolar: List[Senaryo] = self._load_all(SENARYOLAR_XML, SENARYOLAR_XSD, "Senaryo", Senaryo)
-        self.gorevler: List[Gorev] = self._load_all(GOREVLER_XML, GOREVLER_XSD, "Gorev", Gorev)
+        self.radarlar: List[Radar] = []
+        self.teknikler: List[Teknik] = []
+        self.senaryolar: List[Senaryo] = []
+        self.gorevler: List[Gorev] = []
+
+    def new_workspace(self):
+        """Tüm mevcut veriyi temizler ve yeni bir çalışma alanı başlatır."""
+        self.radarlar.clear()
+        self.teknikler.clear()
+        self.senaryolar.clear()
+        self.gorevler.clear()
+        self._emit_all_changed_signals()
+        self.status_updated.emit("Yeni veri seti oluşturuldu. Alanlar temizlendi.")
+
+    def save_workspace(self, path: str):
+        """Mevcut tüm veriyi tek bir XML dosyasına kaydeder."""
+        try:
+            root = ET.Element("EWVeriSeti")
+            # Her bir veri tipi için ayrı bir ana etiket oluştur
+            for tag, data_list in [
+                ("Radarlar", self.radarlar),
+                ("Teknikler", self.teknikler),
+                ("Senaryolar", self.senaryolar),
+                ("Gorevler", self.gorevler)
+            ]:
+                sub_root = ET.SubElement(root, tag)
+                for item in data_list:
+                    sub_root.append(self._dataclass_to_element(item))
+
+            tree = ET.ElementTree(root)
+            ET.indent(tree, space="  ", level=0)
+            tree.write(path, encoding="utf-8", xml_declaration=True)
+            self.status_updated.emit(f"Veri seti başarıyla '{os.path.basename(path)}' dosyasına kaydedildi.")
+        except Exception as e:
+            self.status_updated.emit(f"Hata: Veri seti kaydedilemedi - {e}")
+
+    def open_workspace(self, path: str):
+        """Bir XML dosyasından tüm veri setini yükler. Mevcut veri silinir."""
+        try:
+            self.new_workspace()  # Başlamadan önce her şeyi temizle
+            root = ET.parse(path).getroot()
+
+            item_map = {
+                "Radarlar/Radar": (Radar, self.radarlar),
+                "Teknikler/Teknik": (Teknik, self.teknikler),
+                "Senaryolar/Senaryo": (Senaryo, self.senaryolar),
+                "Gorevler/Gorev": (Gorev, self.gorevler)
+            }
+
+            for path_str, (cls, data_list) in item_map.items():
+                for elem in root.findall(path_str):
+                    item = self._element_to_dataclass(elem, cls)
+                    data_list.append(item)
+
+            self._emit_all_changed_signals()
+            self.status_updated.emit(f"'{os.path.basename(path)}' veri seti başarıyla yüklendi.")
+        except Exception as e:
+            self.new_workspace()  # Hata durumunda yine temiz bir başlangıç yap
+            self.status_updated.emit(f"Hata: Veri seti yüklenemedi - {e}")
+
+        # --- Diğer Metotlar (XML çevrimi, CRUD vb.) ---
+        # Bu metotlarda bir değişiklik yapmaya gerek yok, hepsi olduğu gibi kalabilir.
+        # _element_to_dataclass, _dataclass_to_element, save_item, delete_item_by_id vb.
+
+    def _emit_all_changed_signals(self):
+        """Tüm veri listelerinin değiştiğine dair sinyalleri gönderir."""
+        self.radarlar_changed.emit()
+        self.teknikler_changed.emit()
+        self.senaryolar_changed.emit()
+        self.gorevler_changed.emit()
 
     def _element_to_dataclass(self, element: ET.Element, cls: Type[T]) -> T:
         data = {}
@@ -167,23 +233,38 @@ class DataManager(QObject):
         return None, None, None
 
     def save_item(self, item):
-        list_ref, save_func, signal = self._get_list_ref(type(item))
+        """
+        Verilen bir öğeyi kaydeder veya günceller.
+        Eğer öğenin ID'si yoksa, yeni bir ID atar.
+        """
+        list_ref, _, signal = self._get_list_ref(type(item))
         if list_ref is None: return
 
         id_field = f"{type(item).__name__.lower()}_id"
-        item_id = getattr(item, id_field)
+        item_id = getattr(item, id_field, None)
+
+        # --- HATA DÜZELTMESİ BURADA ---
+        # Eğer nesnenin bir ID'si yoksa (yani yeni bir nesne ise), ona yeni bir ID ata.
+        if item_id is None:
+            item_id = str(uuid.uuid4())
+            setattr(item, id_field, item_id)
+        # ------------------------------
+
+        # Mevcut listede bu ID'ye sahip bir öğe var mı diye kontrol et
         idx = next((i for i, x in enumerate(list_ref) if getattr(x, id_field) == item_id), None)
 
         if idx is not None:
+            # Varsa, mevcut öğeyi güncelle
             list_ref[idx] = item
         else:
+            # Yoksa, listeye yeni öğeyi ekle
             list_ref.append(item)
 
-        save_func()
+        # Sinyali göndererek arayüzü güncelle
         signal.emit()
 
     def delete_item_by_id(self, item_id: str, item_type: Type[T]):
-        list_ref, save_func, signal = self._get_list_ref(item_type)
+        list_ref, _, signal = self._get_list_ref(item_type)
         if list_ref is None: return
 
         id_field = f"{item_type.__name__.lower()}_id"
@@ -191,7 +272,6 @@ class DataManager(QObject):
         list_ref[:] = [item for item in list_ref if getattr(item, id_field) != item_id]
 
         if len(list_ref) < original_len:
-            save_func()
             signal.emit()
 
     def duplicate_item(self, item):
@@ -199,13 +279,12 @@ class DataManager(QObject):
             new_item = copy.deepcopy(item)
             item_type = type(item)
             id_field = f"{item_type.__name__.lower()}_id"
-            setattr(new_item, id_field, str(uuid.uuid4()))
+            setattr(new_item, id_field, str(uuid.uuid4()))  # Her zaman yeni bir ID ata
             new_item.adi = f"{new_item.adi} (Kopya)"
             self.save_item(new_item)
             self.status_updated.emit(f"'{item.adi}' kopyalandı ve '{new_item.adi}' olarak kaydedildi.")
         except Exception as e:
             self.status_updated.emit(f"Hata: Kayıt kopyalanamadı - {e}")
-
     def export_gorev_package(self, gorev_id: str, path: str):
         gorev = next((g for g in self.gorevler if g.gorev_id == gorev_id), None)
         if not gorev:

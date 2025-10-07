@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex
-from typing import List, Any
+from typing import List, Any, Dict
 from core.data_models import Teknik, Radar, Senaryo, Gorev
+
 
 class BaseTableModel(QAbstractTableModel):
     def __init__(self, data: List[Any] = None):
@@ -40,6 +41,7 @@ class BaseTableModel(QAbstractTableModel):
         self._data = new_data
         self.endResetModel()
 
+
 class RadarTableModel(BaseTableModel):
     def __init__(self, data: List[Radar] = None):
         super().__init__(data)
@@ -47,6 +49,7 @@ class RadarTableModel(BaseTableModel):
 
     def get_display_data(self, item: Radar, column: int) -> str:
         return [item.adi, item.uretici, item.frekans_bandi, item.gorev_tipi][column]
+
 
 class TeknikTableModel(BaseTableModel):
     def __init__(self, data: List[Teknik] = None):
@@ -56,6 +59,7 @@ class TeknikTableModel(BaseTableModel):
     def get_display_data(self, item: Teknik, column: int) -> str:
         return [item.adi, item.kategori][column]
 
+
 class SenaryoTableModel(BaseTableModel):
     def __init__(self, data: List[Senaryo] = None):
         super().__init__(data)
@@ -63,6 +67,7 @@ class SenaryoTableModel(BaseTableModel):
 
     def get_display_data(self, item: Senaryo, column: int) -> str:
         return [item.adi, item.tarih_iso, item.konum, item.sonuc_nitel][column]
+
 
 class GorevTableModel(BaseTableModel):
     def __init__(self, data: List[Gorev] = None):
@@ -75,3 +80,48 @@ class GorevTableModel(BaseTableModel):
         if column == 2: return item.sorumlu_personel
         if column == 3: return str(len(item.senaryo_id_list))
         return ""
+
+
+# --- YENİ EKLENEN TABLO MODELİ ---
+class GorevSenaryoTableModel(QAbstractTableModel):
+    """Görev Merkezi'ndeki detaylı senaryo tablosu için model."""
+
+    def __init__(self, data: List[Senaryo] = None, radar_map: Dict = None, teknik_map: Dict = None):
+        super().__init__()
+        self._data = data or []
+        self._radar_map = radar_map or {}
+        self._teknik_map = teknik_map or {}
+        self._headers = ["Senaryo Adı", "Hedef Radar", "Uygulanan EKT'ler", "Sonuç"]
+
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+        if role == Qt.ItemDataRole.DisplayRole:
+            senaryo = self._data[index.row()]
+            col = index.column()
+            if col == 0:
+                return senaryo.adi
+            if col == 1:
+                return self._radar_map.get(senaryo.radar_id, "Bilinmiyor")
+            if col == 2:
+                teknik_names = [self._teknik_map.get(tid, "Bilinmeyen Teknik") for tid in senaryo.teknik_id_list]
+                return ", ".join(teknik_names)
+            if col == 3:
+                return senaryo.sonuc_nitel
+        return None
+
+    def rowCount(self, index: QModelIndex = QModelIndex()) -> int:
+        return len(self._data)
+
+    def columnCount(self, index: QModelIndex = QModelIndex()) -> int:
+        return len(self._headers)
+
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            return self._headers[section]
+        return None
+
+    def refresh_data(self, new_data: List[Senaryo], radar_map: Dict, teknik_map: Dict):
+        self.beginResetModel()
+        self._data = new_data
+        self._radar_map = radar_map
+        self._teknik_map = teknik_map
+        self.endResetModel()

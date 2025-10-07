@@ -1,1 +1,31 @@
-<Radarlar></Radarlar>
+<?xml version='1.0' encoding='utf-8'?>
+<Radarlar>
+  <Radar id="b39915cc-3963-4f47-b261-fdd4aca0bbe3">
+    <Adi>SA-9</Adi>
+    <Uretici>RUS</Uretici>
+    <FrekansBandi>UHF</FrekansBandi>
+    <GorevTipi>Hava Savunma</GorevTipi>
+    <AntenTipi>Parabolik</AntenTipi>
+    <PwUs>1.0</PwUs>
+    <PrfHz>5000.0</PrfHz>
+    <PriUs>200.0</PriUs>
+    <ErpDbw>90.0</ErpDbw>
+    <DarbeModulasyonu>Normal Darbe (CW)</DarbeModulasyonu>
+    <DarbeEntegrasyonu>10</DarbeEntegrasyonu>
+    <Notlar />
+  </Radar>
+  <Radar id="66336b9d-deda-4dda-939b-4d3300b2b57c">
+    <Adi>SA-11</Adi>
+    <Uretici>RUS</Uretici>
+    <FrekansBandi>UHF</FrekansBandi>
+    <GorevTipi>Hava Savunma</GorevTipi>
+    <AntenTipi>Parabolik</AntenTipi>
+    <PwUs>1.0</PwUs>
+    <PrfHz>5000.0</PrfHz>
+    <PriUs>200.0</PriUs>
+    <ErpDbw>90.0</ErpDbw>
+    <DarbeModulasyonu>Normal Darbe (CW)</DarbeModulasyonu>
+    <DarbeEntegrasyonu>10</DarbeEntegrasyonu>
+    <Notlar />
+  </Radar>
+</Radarlar>
