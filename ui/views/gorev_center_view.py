@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import qtawesome as qta
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QDate
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QGroupBox,
                                QLineEdit, QTableView, QHeaderView, QLabel, QPushButton,
                                QFileDialog, QMessageBox, QListWidget, QFormLayout, QTextEdit,
-                               QListWidgetItem, QDialog, QDialogButtonBox, QAbstractItemView, QTabWidget)
+                               QListWidgetItem, QDialog, QDialogButtonBox, QAbstractItemView, QTabWidget,
+                               QDateEdit) # QDateEdit eklendi
 
 from viewmodels.gorev_vm import GorevViewModel
 from viewmodels.scenario_vm import ScenarioViewModel
@@ -16,18 +17,22 @@ from core.data_models import Gorev, Senaryo
 
 class ScenarioEntryDialog(QDialog):
     """Senaryo giriş formunu sarmalayan diyalog penceresi."""
-    form_saved = Signal()
+    form_saved = Signal(Senaryo) # GÜNCELLEME: Kaydedilen senaryoyu sinyal ile gönder
 
     def __init__(self, vm: ScenarioViewModel, parent=None):
         super().__init__(parent)
+
         self.setWindowTitle("Senaryo Kayıt/Düzenleme")
-        self.setMinimumSize(800, 700)
+        self.setMinimumSize(950, 800)
         self.view = ScenarioEntryView(vm)
         layout = QVBoxLayout(self)
         layout.addWidget(self.view)
 
-        # View içindeki sinyali diyalogun kapanmasına bağla
-        self.view.form_saved.connect(self.accept)
+        self.view.form_saved.connect(self.on_form_saved)
+
+    def on_form_saved(self, scenario: Senaryo):
+        self.form_saved.emit(scenario) # GÜNCELLEME: Gelen senaryoyu tekrar emit et
+        self.accept()
 
     def load_scenario(self, scenario: Senaryo | None):
         if scenario:
@@ -35,7 +40,7 @@ class ScenarioEntryDialog(QDialog):
         else:
             self.view._clear_form()
 
-
+# ... (SenaryoSelectionDialog sınıfında değişiklik yok)
 class SenaryoSelectionDialog(QDialog):
     def __init__(self, all_senaryos: list[Senaryo], pre_selected_ids: list[str], parent=None):
         super().__init__(parent)
@@ -65,6 +70,7 @@ class SenaryoSelectionDialog(QDialog):
 
 
 class GorevCenterView(QWidget):
+    # ... (init metodunda değişiklik yok)
     def __init__(self, gorev_vm: GorevViewModel, scenario_vm: ScenarioViewModel, parent=None):
         super().__init__(parent)
         self.vm = gorev_vm
@@ -72,13 +78,13 @@ class GorevCenterView(QWidget):
         self.current_gorev = None
         self.current_scenario = None
 
-        # Senaryo giriş formunu içeren diyalog penceresini oluştur
         self.scenario_entry_dialog = ScenarioEntryDialog(self.scenario_vm, self)
 
         self._build_ui()
         self._connect_signals()
         self._clear_details()
 
+    # ... (_build_ui ve sağ panel oluşturma metodlarında küçük değişiklikler var)
     def _build_ui(self):
         layout = QHBoxLayout(self)
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -112,6 +118,7 @@ class GorevCenterView(QWidget):
         splitter.setSizes([700, 600])
         layout.addWidget(splitter)
 
+
     def _build_gorev_details_tab(self):
         """Görev detaylarının ve atanmış senaryoların olduğu ilk sekmeyi oluşturur."""
         layout = QVBoxLayout(self.gorev_details_tab)
@@ -119,12 +126,15 @@ class GorevCenterView(QWidget):
         form = QFormLayout(form_group)
 
         self.in_adi = QLineEdit()
-        self.in_tarih = QLineEdit(readOnly=True)
+        # GÜNCELLEME: Tarih alanları güncellendi
+        self.in_gorev_tarihi = QDateEdit(calendarPopup=True, date=QDate.currentDate())
+        self.in_olusturma_tarihi = QLineEdit(readOnly=True)
         self.in_sorumlu = QLineEdit()
         self.in_aciklama = QTextEdit(fixedHeight=80)
 
         form.addRow("Görev Adı:", self.in_adi)
-        form.addRow("Oluşturma Tarihi:", self.in_tarih)
+        form.addRow("Görev Tarihi:", self.in_gorev_tarihi) # GÜNCELLEME
+        form.addRow("Oluşturma Tarihi:", self.in_olusturma_tarihi) # GÜNCELLEME
         form.addRow("Sorumlu Personel:", self.in_sorumlu)
         form.addRow("Açıklama:", self.in_aciklama)
         layout.addWidget(form_group)
@@ -141,8 +151,11 @@ class GorevCenterView(QWidget):
         senaryo_layout.addWidget(self.senaryo_table)
 
         btn_layout = QHBoxLayout()
-        self.btn_manage_senaryos = QPushButton("Görev Senaryolarını Yönet", icon=qta.icon('fa5s.tasks'))
+        # GÜNCELLEME: Yeni senaryo ekleme butonu eklendi
+        self.btn_yeni_senaryo_ata = QPushButton("Yeni Senaryo Ekle ve Ata", icon=qta.icon('fa5s.plus'))
+        self.btn_manage_senaryos = QPushButton("Mevcutlardan Seç...", icon=qta.icon('fa5s.tasks'))
         btn_layout.addStretch()
+        btn_layout.addWidget(self.btn_yeni_senaryo_ata) # GÜNCELLEME
         btn_layout.addWidget(self.btn_manage_senaryos)
         senaryo_layout.addLayout(btn_layout)
         layout.addWidget(senaryo_group)
@@ -199,6 +212,8 @@ class GorevCenterView(QWidget):
         self.btn_sil_gorev.clicked.connect(self._delete_gorev)
         self.btn_export.clicked.connect(self._export_package)
         self.btn_manage_senaryos.clicked.connect(self._manage_senaryos)
+        # GÜNCELLEME: Yeni butonun sinyali bağlandı
+        self.btn_yeni_senaryo_ata.clicked.connect(self._add_and_assign_new_scenario)
 
         # Senaryo Sinyalleri
         self.senaryo_search_box.textChanged.connect(self.scenario_vm.set_filter)
@@ -220,7 +235,9 @@ class GorevCenterView(QWidget):
 
     def _populate_details(self, gorev):
         self.in_adi.setText(gorev.adi)
-        self.in_tarih.setText(gorev.olusturma_tarihi_iso)
+        # GÜNCELLEME: Tarih alanları dolduruluyor
+        self.in_gorev_tarihi.setDate(QDate.fromString(gorev.gorev_tarihi_iso, "yyyy-MM-dd"))
+        self.in_olusturma_tarihi.setText(gorev.olusturma_tarihi_iso)
         self.in_sorumlu.setText(gorev.sorumlu_personel)
         self.in_aciklama.setPlainText(gorev.aciklama)
         self.vm.update_senaryo_details_for_gorev(gorev)
@@ -229,12 +246,15 @@ class GorevCenterView(QWidget):
         self.btn_sil_gorev.setEnabled(True)
         self.btn_export.setEnabled(True)
         self.btn_manage_senaryos.setEnabled(True)
+        self.btn_yeni_senaryo_ata.setEnabled(True) # GÜNCELLEME
 
     def _clear_details(self):
         self.gorev_table.clearSelection()
         self.current_gorev = None
         self.in_adi.clear()
-        self.in_tarih.clear()
+        # GÜNCELLEME: Tarih alanları temizleniyor
+        self.in_gorev_tarihi.setDate(QDate.currentDate())
+        self.in_olusturma_tarihi.clear()
         self.in_sorumlu.clear()
         self.in_aciklama.clear()
         self.vm.update_senaryo_details_for_gorev(None)
@@ -243,6 +263,7 @@ class GorevCenterView(QWidget):
         self.btn_sil_gorev.setEnabled(False)
         self.btn_export.setEnabled(False)
         self.btn_manage_senaryos.setEnabled(False)
+        self.btn_yeni_senaryo_ata.setEnabled(False) # GÜNCELLEME
 
     def _new_gorev(self):
         self._clear_details()
@@ -258,6 +279,8 @@ class GorevCenterView(QWidget):
             return
 
         self.current_gorev.adi = self.in_adi.text().strip()
+        # GÜNCELLEME: Görev tarihi kaydediliyor
+        self.current_gorev.gorev_tarihi_iso = self.in_gorev_tarihi.date().toString("yyyy-MM-dd")
         self.current_gorev.sorumlu_personel = self.in_sorumlu.text().strip()
         self.current_gorev.aciklama = self.in_aciklama.toPlainText().strip()
 
@@ -294,7 +317,30 @@ class GorevCenterView(QWidget):
             QMessageBox.information(self, "Bilgi",
                                     "Senaryo listesi güncellendi. Değişiklikleri kalıcı hale getirmek için 'Görevi Kaydet' butonuna tıklayınız.")
 
+    # GÜNCELLEME: Yeni metot eklendi
+    def _add_and_assign_new_scenario(self):
+        if not self.current_gorev:
+            return
+
+        # Yeni senaryo oluşturma diyaloğunu aç
+        dialog = ScenarioEntryDialog(self.scenario_vm, self)
+        dialog.load_scenario(None) # Boş form ile aç
+
+        # Diyalogdan gelen 'form_saved' sinyalini dinle
+        def on_new_scenario_saved(new_scenario: Senaryo):
+            # Yeni senaryonun ID'sini mevcut görevin listesine ekle
+            self.current_gorev.senaryo_id_list.append(new_scenario.senaryo_id)
+            # Görev detaylarındaki senaryo tablosunu güncelle
+            self.vm.update_senaryo_details_for_gorev(self.current_gorev)
+            QMessageBox.information(self, "Bilgi",
+                                    f"'{new_scenario.adi}' senaryosu oluşturuldu ve mevcut göreve atandı. Değişikliği kalıcı yapmak için 'Görevi Kaydet' butonuna tıklayınız.")
+
+        dialog.form_saved.connect(on_new_scenario_saved)
+        dialog.exec()
+
+
     # --- SENARYO METOTLARI ---
+    # ... (Bu bölümdeki metotlarda değişiklik yok)
     def _on_scenario_selection_changed(self, selected, deselected):
         indexes = self.all_senaryo_table.selectionModel().selectedRows()
         if not indexes:

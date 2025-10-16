@@ -19,11 +19,14 @@ APP_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(os.path.dirname(APP_DIR), "data")
 SCHEMA_DIR = os.path.join(os.path.dirname(APP_DIR), "schemas")
 
+# GÜNCELLEME: Platformlar için yeni XML yolu eklendi
+PLATFORMLAR_XML = os.path.join(DATA_DIR, "platformlar.xml")
 TEKNIKLER_XML = os.path.join(DATA_DIR, "teknikler.xml")
 RADARLAR_XML = os.path.join(DATA_DIR, "radarlar.xml")
 SENARYOLAR_XML = os.path.join(DATA_DIR, "senaryolar.xml")
 GOREVLER_XML = os.path.join(DATA_DIR, "gorevler.xml")
 
+# GÜNCELLEME: Platformlar için yeni XSD yolu eklenebilir (şimdilik opsiyonel)
 TEKNIKLER_XSD = os.path.join(SCHEMA_DIR, "teknik_schema.xsd")
 RADARLAR_XSD = os.path.join(SCHEMA_DIR, "radar_schema.xsd")
 SENARYOLAR_XSD = os.path.join(SCHEMA_DIR, "senaryo_schema.xsd")
@@ -70,19 +73,29 @@ class KaynakUretecAyarParametreleri(BaseTeknikParametreleri):
 
 
 # --- Ana Veri Sınıfları ---
+
+# GÜNCELLEME: Yeni ETPlatformu sınıfı eklendi
+@dataclass
+class ETPlatformu:
+    platform_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    adi: str = "Yeni Platform"
+    aciklama: str = ""
+
 @dataclass
 class Teknik:
     teknik_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     adi: str = "Yeni Teknik"
     kategori: str = TEKNIK_KATEGORILERI[0]
     aciklama: str = ""
+    # GÜNCELLEME: Her tekniğin artık bir platformu var
+    platform_id: Optional[str] = None
     parametreler: Union[
         GurultuKaristirmaParams,
         MenzilAldatmaParams,
         AlmacGondermecAyarParametreleri,
         KaynakUretecAyarParametreleri,
         BaseTeknikParametreleri
-    ] = field(default_factory=GurultuKaristirmaParams)
+    ] = field(default_factory=BaseTeknikParametreleri)
 
 @dataclass
 class Radar:
@@ -103,7 +116,6 @@ class Radar:
 
 @dataclass
 class TeknikUygulama:
-    """Senaryo içinde bir tekniğin uygulanma sırasını ve süresini tutar."""
     sira: int = 1
     teknik_id: str = ""
     sure_sn: float = 0.0
@@ -115,12 +127,12 @@ class Senaryo:
     tarih_iso: str = "2025-01-01"
     konum: str = ""
     amac: str = ""
-    et_sistem_ismi: str = ""
+    # GÜNCELLEME: et_sistem_ismi yerine et_platformu_id kullanılıyor
+    et_platformu_id: Optional[str] = None
     manevra: bool = False
     radar_id: Optional[str] = None
-    uygulanan_teknikler: List[TeknikUygulama] = field(default_factory=list) # DEĞİŞTİ
+    uygulanan_teknikler: List[TeknikUygulama] = field(default_factory=list)
     sonuc_nitel: str = SONUC_NITEL[0]
-    js_db: Optional[float] = None
     mesafe_km: Optional[float] = None
     notlar: str = ""
 
@@ -129,6 +141,7 @@ class Gorev:
     gorev_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     adi: str = "Yeni Görev"
     olusturma_tarihi_iso: str = field(default_factory=lambda: date.today().isoformat())
+    gorev_tarihi_iso: str = field(default_factory=lambda: date.today().isoformat())
     sorumlu_personel: str = ""
     aciklama: str = ""
     senaryo_id_list: List[str] = field(default_factory=list)

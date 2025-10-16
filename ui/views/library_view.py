@@ -2,17 +2,227 @@
 
 import qtawesome as qta
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QDoubleValidator, QAction
+from PySide6.QtGui import QDoubleValidator
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QStackedWidget,
                                QTableView, QGroupBox, QLabel, QFormLayout, QLineEdit, QComboBox, QTextEdit,
                                QPushButton, QDoubleSpinBox, QSpinBox, QHeaderView, QMessageBox, QSplitter, QCheckBox,
                                QMenu, QFileDialog, QAbstractItemView)
 
 from ..dialogs.radar_history_dialog import RadarHistoryDialog
-from core.data_models import (Radar, Teknik, GurultuKaristirmaParams, MenzilAldatmaParams, BaseTeknikParametreleri,
+from core.data_models import (ETPlatformu, Radar, Teknik, GurultuKaristirmaParams, MenzilAldatmaParams,
+                              BaseTeknikParametreleri,
                               AlmacGondermecAyarParametreleri, KaynakUretecAyarParametreleri,
                               FREKANS_BANDLARI, GOREV_TIPLERI, ANTEN_TIPLERI, TEKNIK_KATEGORILERI, DARBE_MODULASYONLARI)
 from viewmodels.library_vm import LibraryViewModel
+from typing import List
+
+
+class TeknikFormWidget(QWidget):
+    def __init__(self, is_dialog=False, parent=None):
+        super().__init__(parent)
+        self.is_dialog = is_dialog
+        self.platforms: List[ETPlatformu] = []
+        self._build_teknik_form()
+
+    def _build_teknik_form(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        form_group = QGroupBox("Teknik Detayları")
+        layout.addWidget(form_group)
+
+        form = QFormLayout(form_group)
+        self.teknik_in_platform = QComboBox()
+        self.teknik_in_adi = QLineEdit()
+        self.teknik_in_kategori = QComboBox()
+        self.teknik_in_kategori.addItems(TEKNIK_KATEGORILERI)
+        self.teknik_in_aciklama = QTextEdit()
+        self.teknik_in_aciklama.setFixedHeight(120)
+
+        form.addRow("İlişkili Platform:", self.teknik_in_platform)
+        form.addRow("Adı:", self.teknik_in_adi)
+        form.addRow("Kategori:", self.teknik_in_kategori)
+        form.addRow("Açıklama:", self.teknik_in_aciklama)
+
+        param_group = QGroupBox("Tekniğe Özel Parametreler")
+        param_layout = QVBoxLayout(param_group)
+        self.teknik_params_stack = QStackedWidget()
+        self._create_gurultu_params_form()
+        self._create_menzil_params_form()
+        self._create_ag_params_form()
+        self._create_ku_params_form()
+        self._create_base_params_form()  # Diğer kategoriler için boş form
+        param_layout.addWidget(self.teknik_params_stack)
+        layout.addWidget(param_group)
+
+        if not self.is_dialog:
+            layout.addStretch()
+
+        self.teknik_in_kategori.currentIndexChanged.connect(self._on_teknik_kategori_changed)
+
+    def _create_gurultu_params_form(self):
+        widget = QWidget()
+        form = QFormLayout(widget)
+        self.p_gurultu_tur = QComboBox()
+        self.p_gurultu_tur.addItems(["Barrage", "Spot", "Swept", "DRFM Noise"])
+        self.p_gurultu_bant = QDoubleSpinBox(suffix=" MHz", maximum=100000, decimals=1)
+        self.p_gurultu_guc = QDoubleSpinBox(suffix=" dBW", minimum=-100, maximum=100, decimals=1)
+        form.addRow("Tür:", self.p_gurultu_tur)
+        form.addRow("Bant Genişliği:", self.p_gurultu_bant)
+        form.addRow("Güç (ERP):", self.p_gurultu_guc)
+        self.teknik_params_stack.addWidget(widget)
+
+    def _create_menzil_params_form(self):
+        widget = QWidget()
+        form = QFormLayout(widget)
+        self.p_menzil_tip = QComboBox()
+        self.p_menzil_tip.addItems(["RGPO", "RGPI"])
+        self.p_menzil_hiz = QDoubleSpinBox(suffix=" m/s", maximum=10000, decimals=1)
+        self.p_menzil_sayi = QSpinBox(maximum=100)
+        form.addRow("Teknik Tipi:", self.p_menzil_tip)
+        form.addRow("Çekme Hızı:", self.p_menzil_hiz)
+        form.addRow("Sahte Hedef Sayısı:", self.p_menzil_sayi)
+        self.teknik_params_stack.addWidget(widget)
+
+    def _create_ag_params_form(self):
+        widget = QWidget()
+        form = QFormLayout(widget)
+        self.p_ag_ornek_freq = QDoubleSpinBox(suffix=" GHz", maximum=100, decimals=2)
+        self.p_ag_rf_kazanc = QDoubleSpinBox(suffix=" dB", minimum=-20, maximum=80, decimals=1)
+        self.p_ag_if_kazanc = QDoubleSpinBox(suffix=" dB", minimum=-20, maximum=80, decimals=1)
+        self.p_ag_faz_kaydirma = QDoubleSpinBox(suffix=" °", maximum=360, decimals=1)
+        self.p_ag_agc_aktif = QCheckBox("Aktif")
+        self.p_ag_gonderici_guc = QDoubleSpinBox(suffix=" dBm", minimum=-50, maximum=50, decimals=1)
+        self.p_ag_mod_tipi = QComboBox()
+        self.p_ag_mod_tipi.addItems(["BPSK", "QPSK", "16-QAM", "64-QAM"])
+        self.p_ag_veri_hizi = QDoubleSpinBox(suffix=" Mbps", maximum=1000, decimals=1)
+        form.addRow("Ön Örnekleme Frekansı:", self.p_ag_ornek_freq)
+        form.addRow("RF Kazancı:", self.p_ag_rf_kazanc)
+        form.addRow("IF Kazancı:", self.p_ag_if_kazanc)
+        form.addRow("Faz Kaydırma:", self.p_ag_faz_kaydirma)
+        form.addRow("Otomatik Kazanç Kontrolü:", self.p_ag_agc_aktif)
+        form.addRow("Gönderici Gücü:", self.p_ag_gonderici_guc)
+        form.addRow("Modülasyon Tipi:", self.p_ag_mod_tipi)
+        form.addRow("Veri Hızı:", self.p_ag_veri_hizi)
+        self.teknik_params_stack.addWidget(widget)
+
+    def _create_ku_params_form(self):
+        widget = QWidget()
+        form = QFormLayout(widget)
+        self.p_ku_dalga_formu = QComboBox()
+        self.p_ku_dalga_formu.addItems(["Sinus", "Kare", "Testere Dişi", "Darbe"])
+        self.p_ku_bas_freq = QDoubleSpinBox(suffix=" MHz", maximum=100000, decimals=2)
+        self.p_ku_bit_freq = QDoubleSpinBox(suffix=" MHz", maximum=100000, decimals=2)
+        self.p_ku_tarama_sure = QDoubleSpinBox(suffix=" ms", maximum=10000, decimals=2)
+        self.p_ku_darbe_gen = QDoubleSpinBox(suffix=" µs", maximum=1000, decimals=2)
+        self.p_ku_dta = QDoubleSpinBox(suffix=" µs", maximum=10000, decimals=2)
+        self.p_ku_faz_gurultu = QDoubleSpinBox(suffix=" dBc/Hz", minimum=-200, maximum=0, decimals=1)
+        self.p_ku_harmonik = QDoubleSpinBox(suffix=" dB", minimum=-100, maximum=0, decimals=1)
+        form.addRow("Dalga Formu Tipi:", self.p_ku_dalga_formu)
+        form.addRow("Başlangıç Frekansı:", self.p_ku_bas_freq)
+        form.addRow("Bitiş Frekansı:", self.p_ku_bit_freq)
+        form.addRow("Tarama Süresi:", self.p_ku_tarama_sure)
+        form.addRow("Darbe Genişliği:", self.p_ku_darbe_gen)
+        form.addRow("Darbe Tekrarlama Aralığı:", self.p_ku_dta)
+        form.addRow("Faz Gürültüsü:", self.p_ku_faz_gurultu)
+        form.addRow("Harmonik Baskı:", self.p_ku_harmonik)
+        self.teknik_params_stack.addWidget(widget)
+
+    def _create_base_params_form(self):
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.addWidget(QLabel("Bu kategori için özel parametre bulunmamaktadır."), 0, Qt.AlignmentFlag.AlignCenter)
+        self.teknik_params_stack.addWidget(widget)
+
+    def _on_teknik_kategori_changed(self, index):
+        kategori_map = {
+            "Gürültü Karıştırma": 0, "Menzil Aldatma": 1,
+            "Alıcı/Gönderici Ayarları": 2, "Kaynak Üreteç Ayarları": 3
+        }
+        kategori_text = self.teknik_in_kategori.itemText(index)
+        # Eşleşme yoksa sonuncu (boş) widget'ı göster
+        self.teknik_params_stack.setCurrentIndex(kategori_map.get(kategori_text, 4))
+
+    def update_platform_list(self, platforms: List[ETPlatformu]):
+        self.platforms = platforms
+        current_selection = self.teknik_in_platform.currentData()
+        self.teknik_in_platform.clear()
+        self.teknik_in_platform.addItem("— Seçiniz —", userData=None)
+        for p in sorted(platforms, key=lambda x: x.adi):
+            self.teknik_in_platform.addItem(p.adi, userData=p.platform_id)
+
+        new_index = self.teknik_in_platform.findData(current_selection)
+        if new_index != -1:
+            self.teknik_in_platform.setCurrentIndex(new_index)
+
+    def populate_form(self, teknik: Teknik):
+        platform_index = self.teknik_in_platform.findData(teknik.platform_id)
+        self.teknik_in_platform.setCurrentIndex(platform_index if platform_index != -1 else 0)
+        self.teknik_in_adi.setText(teknik.adi)
+        self.teknik_in_kategori.setCurrentText(teknik.kategori)
+        self.teknik_in_aciklama.setText(teknik.aciklama)
+        params = teknik.parametreler
+        if isinstance(params, GurultuKaristirmaParams):
+            self.p_gurultu_tur.setCurrentText(params.tur)
+            self.p_gurultu_bant.setValue(params.bant_genisligi_mhz or 0)
+            self.p_gurultu_guc.setValue(params.guc_erp_dbw or 0)
+        elif isinstance(params, MenzilAldatmaParams):
+            self.p_menzil_tip.setCurrentText(params.teknik_tipi)
+            self.p_menzil_hiz.setValue(params.cekme_hizi_mps or 0)
+            self.p_menzil_sayi.setValue(params.sahte_hedef_sayisi or 0)
+        elif isinstance(params, AlmacGondermecAyarParametreleri):
+            self.p_ag_ornek_freq.setValue(params.on_ornekleme_frekansi_ghz or 0)
+            self.p_ag_rf_kazanc.setValue(params.rf_kazanc_db or 0)
+            self.p_ag_if_kazanc.setValue(params.if_kazanc_db or 0)
+            self.p_ag_faz_kaydirma.setValue(params.faz_kaydirma_derece or 0)
+            self.p_ag_agc_aktif.setChecked(params.otomatik_kazanc_kontrolu_aktif or False)
+            self.p_ag_gonderici_guc.setValue(params.gonderici_guc_dbm or 0)
+            self.p_ag_mod_tipi.setCurrentText(params.modulasyon_tipi or "QPSK")
+            self.p_ag_veri_hizi.setValue(params.veri_hizi_mbps or 0)
+        elif isinstance(params, KaynakUretecAyarParametreleri):
+            self.p_ku_dalga_formu.setCurrentText(params.dalga_formu_tipi or "Sinus")
+            self.p_ku_bas_freq.setValue(params.baslangic_frekansi_mhz or 0)
+            self.p_ku_bit_freq.setValue(params.bitis_frekansi_mhz or 0)
+            self.p_ku_tarama_sure.setValue(params.tarama_suresi_ms or 0)
+            self.p_ku_darbe_gen.setValue(params.darbe_genisligi_us or 0)
+            self.p_ku_dta.setValue(params.darbe_tekrarlama_araligi_us or 0)
+            self.p_ku_faz_gurultu.setValue(params.faz_gurultusu_dbc_hz or 0)
+            self.p_ku_harmonik.setValue(params.harmonik_baski_db or 0)
+
+    def get_data_from_form(self) -> Teknik:
+        teknik = Teknik()
+        teknik.platform_id = self.teknik_in_platform.currentData()
+        teknik.adi = self.teknik_in_adi.text()
+        teknik.kategori = self.teknik_in_kategori.currentText()
+        teknik.aciklama = self.teknik_in_aciklama.toPlainText()
+        kategori = teknik.kategori
+        if kategori == "Gürültü Karıştırma":
+            teknik.parametreler = GurultuKaristirmaParams(tur=self.p_gurultu_tur.currentText(),
+                                                          bant_genisligi_mhz=self.p_gurultu_bant.value() or None,
+                                                          guc_erp_dbw=self.p_gurultu_guc.value() or None)
+        elif kategori == "Menzil Aldatma":
+            teknik.parametreler = MenzilAldatmaParams(teknik_tipi=self.p_menzil_tip.currentText(),
+                                                      cekme_hizi_mps=self.p_menzil_hiz.value() or None,
+                                                      sahte_hedef_sayisi=self.p_menzil_sayi.value() or None)
+        elif kategori == "Alıcı/Gönderici Ayarları":
+            teknik.parametreler = AlmacGondermecAyarParametreleri(
+                on_ornekleme_frekansi_ghz=self.p_ag_ornek_freq.value() or None,
+                rf_kazanc_db=self.p_ag_rf_kazanc.value() or None, if_kazanc_db=self.p_ag_if_kazanc.value() or None,
+                faz_kaydirma_derece=self.p_ag_faz_kaydirma.value() or None,
+                otomatik_kazanc_kontrolu_aktif=self.p_ag_agc_aktif.isChecked(),
+                gonderici_guc_dbm=self.p_ag_gonderici_guc.value() or None,
+                modulasyon_tipi=self.p_ag_mod_tipi.currentText(), veri_hizi_mbps=self.p_ag_veri_hizi.value() or None)
+        elif kategori == "Kaynak Üreteç Ayarları":
+            teknik.parametreler = KaynakUretecAyarParametreleri(dalga_formu_tipi=self.p_ku_dalga_formu.currentText(),
+                                                                baslangic_frekansi_mhz=self.p_ku_bas_freq.value() or None,
+                                                                bitis_frekansi_mhz=self.p_ku_bit_freq.value() or None,
+                                                                tarama_suresi_ms=self.p_ku_tarama_sure.value() or None,
+                                                                darbe_genisligi_us=self.p_ku_darbe_gen.value() or None,
+                                                                darbe_tekrarlama_araligi_us=self.p_ku_dta.value() or None,
+                                                                faz_gurultusu_dbc_hz=self.p_ku_faz_gurultu.value() or None,
+                                                                harmonik_baski_db=self.p_ku_harmonik.value() or None)
+        else:
+            teknik.parametreler = BaseTeknikParametreleri()
+        return teknik
 
 
 class LibraryView(QWidget):
@@ -30,6 +240,7 @@ class LibraryView(QWidget):
 
         self.category_list = QListWidget()
         self.category_list.setFixedWidth(200)
+        self.category_list.addItem(QListWidgetItem(qta.icon('fa5s.fighter-jet', color='orange'), "ET Platformları"))
         self.category_list.addItem(QListWidgetItem(qta.icon('fa5s.broadcast-tower', color='lightblue'), "Radarlar"))
         self.category_list.addItem(QListWidgetItem(qta.icon('fa5s.wave-square', color='lightgreen'), "EH Teknikleri"))
 
@@ -61,16 +272,15 @@ class LibraryView(QWidget):
         top_bar_layout.addWidget(self.btn_export)
 
         self.table_stack = QStackedWidget()
+        platformlar_table = QTableView()
+        platformlar_table.setModel(self.vm.platformlar_proxy_model)
         radars_table = QTableView()
         radars_table.setModel(self.vm.radars_proxy_model)
         radars_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        radars_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-
         teknikler_table = QTableView()
         teknikler_table.setModel(self.vm.teknikler_proxy_model)
-        teknikler_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
 
-        for table in [radars_table, teknikler_table]:
+        for table in [platformlar_table, radars_table, teknikler_table]:
             table.setSelectionBehavior(QTableView.SelectionBehavior.SelectRows)
             table.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
             table.setSortingEnabled(True)
@@ -90,8 +300,9 @@ class LibraryView(QWidget):
                                      Qt.AlignmentFlag.AlignCenter)
         placeholder_layout.addStretch()
         stack.addWidget(self.placeholder_form)
+        stack.addWidget(self._create_platform_form())
         stack.addWidget(self._create_radar_form())
-        stack.addWidget(self._create_teknik_form())
+        stack.addWidget(self._create_teknik_panel())
         return stack
 
     def _connect_signals(self):
@@ -101,13 +312,18 @@ class LibraryView(QWidget):
         self.btn_import.clicked.connect(self._import_teknikler)
         self.btn_export.clicked.connect(self._export_teknikler)
 
+        self.platformlar_table().selectionModel().selectionChanged.connect(
+            lambda s, d: self._on_item_selected(s, d, self.vm.platformlar_proxy_model))
         self.radars_table().customContextMenuRequested.connect(self._show_radar_context_menu)
         self.radars_table().selectionModel().selectionChanged.connect(
             lambda s, d: self._on_item_selected(s, d, self.vm.radars_proxy_model))
-
         self.teknikler_table().selectionModel().selectionChanged.connect(
             lambda s, d: self._on_item_selected(s, d, self.vm.teknikler_proxy_model))
         self.teknikler_table().selectionModel().selectionChanged.connect(self._update_button_states)
+
+        self.platform_btn_kaydet.clicked.connect(self._save_platform)
+        self.platform_btn_sil.clicked.connect(self._delete_current_item)
+        self.platform_btn_cogalt.clicked.connect(self._duplicate_current_item)
 
         self.radar_btn_kaydet.clicked.connect(self._save_radar)
         self.radar_btn_sil.clicked.connect(self._delete_current_item)
@@ -118,47 +334,42 @@ class LibraryView(QWidget):
         self.teknik_btn_kaydet.clicked.connect(self._save_teknik)
         self.teknik_btn_sil.clicked.connect(self._delete_current_item)
         self.teknik_btn_cogalt.clicked.connect(self._duplicate_current_item)
-        self.teknik_in_kategori.currentIndexChanged.connect(self._on_teknik_kategori_changed)
 
     def _import_teknikler(self):
         paths, _ = QFileDialog.getOpenFileNames(
-            self, "Teknik XML Dosyalarını İçe Aktar", "", "XML Dosyaları (*.xml)"
-        )
+            self, "Teknik XML Dosyalarını İçe Aktar", "", "XML Dosyaları (*.xml)")
         if paths:
             self.vm.import_teknikler(paths)
 
     def _export_teknikler(self):
         selected_indexes = self.teknikler_table().selectionModel().selectedRows()
         if not selected_indexes:
-            QMessageBox.warning(self, "Seçim Yapılmadı", "Dışa aktarmak için lütfen listeden en az bir teknik seçin.")
+            QMessageBox.warning(self, "Seçim Yapılmadı", "Dışa aktarmak için listeden en az bir teknik seçin.")
             return
 
-        teknik_ids = []
-        for index in selected_indexes:
-            item = self.vm.get_item_from_proxy_index(index, self.vm.teknikler_proxy_model)
-            if item:
-                teknik_ids.append(item.teknik_id)
+        teknik_ids = [self.vm.get_item_from_proxy_index(index, self.vm.teknikler_proxy_model).teknik_id
+                      for index in selected_indexes]
 
         path, _ = QFileDialog.getSaveFileName(
-            self, "Seçili Teknikleri Dışa Aktar", "EKT_Paketi.xml", "XML Dosyaları (*.xml)"
-        )
+            self, "Seçili Teknikleri Dışa Aktar", "EKT_Paketi.xml", "XML Dosyaları (*.xml)")
         if path:
             self.vm.export_teknikler(teknik_ids, path)
 
     def _update_button_states(self):
-        is_teknik_category = self.category_list.currentRow() == 1
+        is_teknik_category = self.category_list.currentRow() == 2
         self.btn_import.setVisible(is_teknik_category)
         self.btn_export.setVisible(is_teknik_category)
-
         if is_teknik_category:
-            has_selection = self.teknikler_table().selectionModel().hasSelection()
-            self.btn_export.setEnabled(has_selection)
+            self.btn_export.setEnabled(self.teknikler_table().selectionModel().hasSelection())
 
-    def radars_table(self):
+    def platformlar_table(self):
         return self.table_stack.widget(0)
 
-    def teknikler_table(self):
+    def radars_table(self):
         return self.table_stack.widget(1)
+
+    def teknikler_table(self):
+        return self.table_stack.widget(2)
 
     def _on_category_changed(self, index):
         self.table_stack.setCurrentIndex(index)
@@ -167,40 +378,46 @@ class LibraryView(QWidget):
         self._update_button_states()
 
     def _on_search_changed(self, text):
-        if self.category_list.currentRow() == 0:
-            self.vm.set_radar_filter(text)
+        current_row = self.category_list.currentRow()
+        if current_row == 0:
+            self.vm.set_filter(text, "platform")
+        elif current_row == 1:
+            self.vm.set_filter(text, "radar")
         else:
-            self.vm.set_teknik_filter(text)
+            self.vm.set_filter(text, "teknik")
 
-    # --- DÜZELTİLEN METOT ---
     def _on_item_selected(self, selected, deselected, proxy_model):
-        table_view = None
-        # Sinyalin hangi tablodan geldiğini belirle
-        if proxy_model == self.vm.radars_proxy_model:
-            table_view = self.radars_table()
-        elif proxy_model == self.vm.teknikler_proxy_model:
-            table_view = self.teknikler_table()
+        table_map = {
+            self.vm.platformlar_proxy_model: self.platformlar_table(),
+            self.vm.radars_proxy_model: self.radars_table(),
+            self.vm.teknikler_proxy_model: self.teknikler_table(),
+        }
+        table_view = table_map.get(proxy_model)
+        if not table_view: return
 
-        if not table_view:
-            return
-
-        # Doğru tablonun seçim modelinden seçili satırları al
         selected_indexes = table_view.selectionModel().selectedRows()
-
         if len(selected_indexes) == 1:
             self.current_item = self.vm.get_item_from_proxy_index(selected_indexes[0], proxy_model)
-            if isinstance(self.current_item, Radar):
+            if isinstance(self.current_item, ETPlatformu):
+                self.form_stack.setCurrentWidget(self.platform_form)
+                self._populate_platform_form(self.current_item)
+            elif isinstance(self.current_item, Radar):
                 self.form_stack.setCurrentWidget(self.radar_form)
                 self._populate_radar_form(self.current_item)
             elif isinstance(self.current_item, Teknik):
-                self.form_stack.setCurrentWidget(self.teknik_form)
+                self.form_stack.setCurrentWidget(self.teknik_panel)
                 self._populate_teknik_form(self.current_item)
         else:
-            # Çoklu seçim veya seçim yoksa formu temizle
             self._clear_forms_and_selection(clear_table_selection=False)
 
     def _on_new_item_clicked(self):
-        if self.category_list.currentRow() == 0:
+        current_row = self.category_list.currentRow()
+        if current_row == 0:
+            self.platformlar_table().clearSelection()
+            self.current_item = ETPlatformu()
+            self.form_stack.setCurrentWidget(self.platform_form)
+            self._populate_platform_form(self.current_item)
+        elif current_row == 1:
             self.radars_table().clearSelection()
             self.current_item = Radar()
             self.form_stack.setCurrentWidget(self.radar_form)
@@ -208,7 +425,7 @@ class LibraryView(QWidget):
         else:
             self.teknikler_table().clearSelection()
             self.current_item = Teknik()
-            self.form_stack.setCurrentWidget(self.teknik_form)
+            self.form_stack.setCurrentWidget(self.teknik_panel)
             self._populate_teknik_form(self.current_item)
 
     def _delete_current_item(self):
@@ -225,9 +442,11 @@ class LibraryView(QWidget):
     def _clear_forms_and_selection(self, clear_table_selection=True):
         self.current_item = None
         if clear_table_selection:
+            self.platformlar_table().clearSelection()
             self.radars_table().clearSelection()
             self.teknikler_table().clearSelection()
         self.form_stack.setCurrentWidget(self.placeholder_form)
+        self._populate_platform_form(ETPlatformu())
         self._populate_radar_form(Radar())
         self._populate_teknik_form(Teknik())
 
@@ -261,6 +480,39 @@ class LibraryView(QWidget):
         layout.addWidget(cogalt)
         layout.addWidget(sil)
         return kaydet, cogalt, sil, layout
+
+    def _create_platform_form(self):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        form_group = QGroupBox("Platform Detayları")
+        layout.addWidget(form_group)
+        form = QFormLayout(form_group)
+        self.platform_in_adi = QLineEdit()
+        self.platform_in_aciklama = QTextEdit(fixedHeight=120)
+        form.addRow("Platform Adı:", self.platform_in_adi)
+        form.addRow("Açıklama:", self.platform_in_aciklama)
+        layout.addStretch()
+        self.platform_btn_kaydet, self.platform_btn_cogalt, self.platform_btn_sil, btn_layout = self._create_form_buttons()
+        layout.addLayout(btn_layout)
+        self.platform_form = panel
+        return panel
+
+    def _populate_platform_form(self, platform: ETPlatformu):
+        is_new = not self.vm.item_exists(platform.platform_id, ETPlatformu)
+        self.platform_btn_cogalt.setEnabled(not is_new)
+        self.platform_btn_sil.setEnabled(not is_new)
+        self.platform_in_adi.setText(platform.adi)
+        self.platform_in_aciklama.setPlainText(platform.aciklama)
+
+    def _save_platform(self):
+        if not (self.current_item and isinstance(self.current_item, ETPlatformu)): return
+        if not self.platform_in_adi.text().strip():
+            QMessageBox.warning(self, "Eksik Bilgi", "Platform adı boş olamaz.")
+            return
+        self.current_item.adi = self.platform_in_adi.text().strip()
+        self.current_item.aciklama = self.platform_in_aciklama.toPlainText().strip()
+        self.vm.save_item(self.current_item)
+        QMessageBox.information(self, "Başarılı", f"'{self.current_item.adi}' platformu güncellendi.")
 
     def _create_radar_form(self):
         panel = QWidget()
@@ -310,7 +562,7 @@ class LibraryView(QWidget):
         return panel
 
     def _populate_radar_form(self, radar: Radar):
-        is_new = not radar.radar_id or not self.vm.item_exists(radar.radar_id, Radar)
+        is_new = not self.vm.item_exists(radar.radar_id, Radar)
         self.radar_btn_cogalt.setEnabled(not is_new)
         self.radar_btn_sil.setEnabled(not is_new)
         self.radar_in_adi.setText(radar.adi)
@@ -329,18 +581,21 @@ class LibraryView(QWidget):
 
     def _save_radar(self):
         if not (self.current_item and isinstance(self.current_item, Radar)): return
+        if not self.radar_in_adi.text().strip():
+            QMessageBox.warning(self, "Eksik Bilgi", "Radar adı boş olamaz.")
+            return
 
         def get_float(widget: QLineEdit):
             text = widget.text().strip().replace(',', '.')
             return float(text) if text else None
 
-        self.current_item.adi = self.radar_in_adi.text()
-        self.current_item.elnot = self.radar_in_elnot.text()
-        self.current_item.uretici = self.radar_in_uretici.text()
+        self.current_item.adi = self.radar_in_adi.text().strip()
+        self.current_item.elnot = self.radar_in_elnot.text().strip()
+        self.current_item.uretici = self.radar_in_uretici.text().strip()
         self.current_item.frekans_bandi = self.radar_in_bant.currentText()
         self.current_item.gorev_tipi = self.radar_in_gorev.currentText()
         self.current_item.anten_tipi = self.radar_in_anten.currentText()
-        self.current_item.notlar = self.radar_in_not.toPlainText()
+        self.current_item.notlar = self.radar_in_not.toPlainText().strip()
         self.current_item.erp_dbw = get_float(self.radar_in_erp)
         self.current_item.pw_us = get_float(self.radar_in_pw)
         self.current_item.prf_hz = get_float(self.radar_in_prf)
@@ -353,193 +608,49 @@ class LibraryView(QWidget):
     def _update_pri_from_prf(self):
         try:
             prf_hz = float(self.radar_in_prf.text().replace(',', '.'))
-            if prf_hz > 0:
-                pri_us = (1 / prf_hz) * 1_000_000
-                self.radar_in_pri.setText(f"{pri_us:.4f}")
+            if prf_hz > 0: self.radar_in_pri.setText(f"{(1 / prf_hz) * 1_000_000:.4f}")
         except (ValueError, ZeroDivisionError):
             pass
 
     def _update_prf_from_pri(self):
         try:
             pri_us = float(self.radar_in_pri.text().replace(',', '.'))
-            if pri_us > 0:
-                prf_hz = 1 / (pri_us / 1_000_000)
-                self.radar_in_prf.setText(f"{prf_hz:.2f}")
+            if pri_us > 0: self.radar_in_prf.setText(f"{1 / (pri_us / 1_000_000):.2f}")
         except (ValueError, ZeroDivisionError):
             pass
 
-    def _create_teknik_form(self):
+    def _create_teknik_panel(self):
         panel = QWidget()
         layout = QVBoxLayout(panel)
-        form_group = QGroupBox("Teknik Detayları")
-        layout.addWidget(form_group)
-        form = QFormLayout(form_group)
-        self.teknik_in_adi = QLineEdit()
-        self.teknik_in_kategori = QComboBox();
-        self.teknik_in_kategori.addItems(TEKNIK_KATEGORILERI)
-        self.teknik_in_aciklama = QTextEdit();
-        self.teknik_in_aciklama.setFixedHeight(120)
-        form.addRow("Adı:", self.teknik_in_adi)
-        form.addRow("Kategori:", self.teknik_in_kategori)
-        form.addRow("Açıklama:", self.teknik_in_aciklama)
-        param_group = QGroupBox("Tekniğe Özel Parametreler")
-        param_layout = QVBoxLayout(param_group)
-        self.teknik_params_stack = QStackedWidget()
-        self._create_gurultu_params_form()
-        self._create_menzil_params_form()
-        self._create_ag_params_form()
-        self._create_ku_params_form()
-        param_layout.addWidget(self.teknik_params_stack)
-        layout.addWidget(param_group)
-        layout.addStretch()
+        self.teknik_form_widget = TeknikFormWidget()
+        layout.addWidget(self.teknik_form_widget)
         self.teknik_btn_kaydet, self.teknik_btn_cogalt, self.teknik_btn_sil, btn_layout = self._create_form_buttons()
         layout.addLayout(btn_layout)
-        self.teknik_form = panel
+        self.teknik_panel = panel
         return panel
 
-    def _create_gurultu_params_form(self):
-        widget = QWidget()
-        form = QFormLayout(widget)
-        self.p_gurultu_tur = QComboBox();
-        self.p_gurultu_tur.addItems(["Barrage", "Spot", "Swept", "DRFM Noise"])
-        self.p_gurultu_bant = QDoubleSpinBox(suffix=" MHz", maximum=100000)
-        self.p_gurultu_guc = QDoubleSpinBox(suffix=" dBW", minimum=-100, maximum=100)
-        form.addRow("Tür:", self.p_gurultu_tur)
-        form.addRow("Bant Genişliği:", self.p_gurultu_bant)
-        form.addRow("Güç (ERP):", self.p_gurultu_guc)
-        self.teknik_params_stack.addWidget(widget)
-
-    def _create_menzil_params_form(self):
-        widget = QWidget()
-        form = QFormLayout(widget)
-        self.p_menzil_tip = QComboBox();
-        self.p_menzil_tip.addItems(["RGPO", "RGPI"])
-        self.p_menzil_hiz = QDoubleSpinBox(suffix=" m/s", maximum=10000)
-        self.p_menzil_sayi = QSpinBox(maximum=100)
-        form.addRow("Teknik Tipi:", self.p_menzil_tip)
-        form.addRow("Çekme Hızı:", self.p_menzil_hiz)
-        form.addRow("Sahte Hedef Sayısı:", self.p_menzil_sayi)
-        self.teknik_params_stack.addWidget(widget)
-
-    def _create_ag_params_form(self):
-        widget = QWidget()
-        form = QFormLayout(widget)
-        self.p_ag_ornek_freq = QDoubleSpinBox(suffix=" GHz", maximum=100)
-        self.p_ag_rf_kazanc = QDoubleSpinBox(suffix=" dB", minimum=-20, maximum=80)
-        self.p_ag_if_kazanc = QDoubleSpinBox(suffix=" dB", minimum=-20, maximum=80)
-        self.p_ag_faz_kaydirma = QDoubleSpinBox(suffix=" °", maximum=360)
-        self.p_ag_agc_aktif = QCheckBox("Aktif")
-        self.p_ag_gonderici_guc = QDoubleSpinBox(suffix=" dBm", minimum=-50, maximum=50)
-        self.p_ag_mod_tipi = QComboBox();
-        self.p_ag_mod_tipi.addItems(["BPSK", "QPSK", "16-QAM", "64-QAM"])
-        self.p_ag_veri_hizi = QDoubleSpinBox(suffix=" Mbps", maximum=1000)
-        form.addRow("Ön Örnekleme Frekansı:", self.p_ag_ornek_freq)
-        form.addRow("RF Kazancı:", self.p_ag_rf_kazanc)
-        form.addRow("IF Kazancı:", self.p_ag_if_kazanc)
-        form.addRow("Faz Kaydırma:", self.p_ag_faz_kaydirma)
-        form.addRow("Otomatik Kazanç Kontrolü:", self.p_ag_agc_aktif)
-        form.addRow("Gönderici Gücü:", self.p_ag_gonderici_guc)
-        form.addRow("Modülasyon Tipi:", self.p_ag_mod_tipi)
-        form.addRow("Veri Hızı:", self.p_ag_veri_hizi)
-        self.teknik_params_stack.addWidget(widget)
-
-    def _create_ku_params_form(self):
-        widget = QWidget()
-        form = QFormLayout(widget)
-        self.p_ku_dalga_formu = QComboBox();
-        self.p_ku_dalga_formu.addItems(["Sinus", "Kare", "Testere Dişi", "Darbe"])
-        self.p_ku_bas_freq = QDoubleSpinBox(suffix=" MHz", maximum=100000)
-        self.p_ku_bit_freq = QDoubleSpinBox(suffix=" MHz", maximum=100000)
-        self.p_ku_tarama_sure = QDoubleSpinBox(suffix=" ms", maximum=10000)
-        self.p_ku_darbe_gen = QDoubleSpinBox(suffix=" µs", maximum=1000)
-        self.p_ku_dta = QDoubleSpinBox(suffix=" µs", maximum=10000)
-        self.p_ku_faz_gurultu = QDoubleSpinBox(suffix=" dBc/Hz", minimum=-200, maximum=0)
-        self.p_ku_harmonik = QDoubleSpinBox(suffix=" dB", minimum=-100, maximum=0)
-        form.addRow("Dalga Formu Tipi:", self.p_ku_dalga_formu)
-        form.addRow("Başlangıç Frekansı:", self.p_ku_bas_freq)
-        form.addRow("Bitiş Frekansı:", self.p_ku_bit_freq)
-        form.addRow("Tarama Süresi:", self.p_ku_tarama_sure)
-        form.addRow("Darbe Genişliği:", self.p_ku_darbe_gen)
-        form.addRow("Darbe Tekrarlama Aralığı:", self.p_ku_dta)
-        form.addRow("Faz Gürültüsü:", self.p_ku_faz_gurultu)
-        form.addRow("Harmonik Baskı:", self.p_ku_harmonik)
-        self.teknik_params_stack.addWidget(widget)
-
-    def _on_teknik_kategori_changed(self, index):
-        kategori_map = {
-            "Gürültü Karıştırma": 0, "Menzil Aldatma": 1,
-            "Alıcı/Gönderici Ayarları": 2, "Kaynak Üreteç Ayarları": 3
-        }
-        self.teknik_params_stack.setCurrentIndex(kategori_map.get(self.teknik_in_kategori.itemText(index), 0))
-
     def _populate_teknik_form(self, teknik: Teknik):
-        self.teknik_in_adi.setText(teknik.adi)
-        self.teknik_in_kategori.setCurrentText(teknik.kategori)
-        self.teknik_in_aciklama.setText(teknik.aciklama)
-        params = teknik.parametreler
-        if isinstance(params, GurultuKaristirmaParams):
-            self.p_gurultu_tur.setCurrentText(params.tur)
-            self.p_gurultu_bant.setValue(params.bant_genisligi_mhz or 0)
-            self.p_gurultu_guc.setValue(params.guc_erp_dbw or 0)
-        elif isinstance(params, MenzilAldatmaParams):
-            self.p_menzil_tip.setCurrentText(params.teknik_tipi)
-            self.p_menzil_hiz.setValue(params.cekme_hizi_mps or 0)
-            self.p_menzil_sayi.setValue(params.sahte_hedef_sayisi or 0)
-        elif isinstance(params, AlmacGondermecAyarParametreleri):
-            self.p_ag_ornek_freq.setValue(params.on_ornekleme_frekansi_ghz or 0)
-            self.p_ag_rf_kazanc.setValue(params.rf_kazanc_db or 0)
-            self.p_ag_if_kazanc.setValue(params.if_kazanc_db or 0)
-            self.p_ag_faz_kaydirma.setValue(params.faz_kaydirma_derece or 0)
-            self.p_ag_agc_aktif.setChecked(params.otomatik_kazanc_kontrolu_aktif)
-            self.p_ag_gonderici_guc.setValue(params.gonderici_guc_dbm or 0)
-            self.p_ag_mod_tipi.setCurrentText(params.modulasyon_tipi)
-            self.p_ag_veri_hizi.setValue(params.veri_hizi_mbps or 0)
-        elif isinstance(params, KaynakUretecAyarParametreleri):
-            self.p_ku_dalga_formu.setCurrentText(params.dalga_formu_tipi)
-            self.p_ku_bas_freq.setValue(params.baslangic_frekansi_mhz or 0)
-            self.p_ku_bit_freq.setValue(params.bitis_frekansi_mhz or 0)
-            self.p_ku_tarama_sure.setValue(params.tarama_suresi_ms or 0)
-            self.p_ku_darbe_gen.setValue(params.darbe_genisligi_us or 0)
-            self.p_ku_dta.setValue(params.darbe_tekrarlama_araligi_us or 0)
-            self.p_ku_faz_gurultu.setValue(params.faz_gurultusu_dbc_hz or 0)
-            self.p_ku_harmonik.setValue(params.harmonik_baski_db or 0)
-        is_new = not hasattr(teknik, 'teknik_id') or not self.vm.item_exists(teknik.teknik_id, Teknik)
+        platforms = self.vm.get_all_platforms()
+        self.teknik_form_widget.update_platform_list(platforms)
+        self.teknik_form_widget.populate_form(teknik)
+        is_new = not self.vm.item_exists(teknik.teknik_id, Teknik)
         self.teknik_btn_cogalt.setEnabled(not is_new)
         self.teknik_btn_sil.setEnabled(not is_new)
 
     def _save_teknik(self):
         if not (self.current_item and isinstance(self.current_item, Teknik)): return
-        teknik = self.current_item
-        teknik.adi = self.teknik_in_adi.text()
-        teknik.kategori = self.teknik_in_kategori.currentText()
-        teknik.aciklama = self.teknik_in_aciklama.toPlainText()
-        kategori = teknik.kategori
-        if kategori == "Gürültü Karıştırma":
-            teknik.parametreler = GurultuKaristirmaParams(tur=self.p_gurultu_tur.currentText(),
-                                                          bant_genisligi_mhz=self.p_gurultu_bant.value() or None,
-                                                          guc_erp_dbw=self.p_gurultu_guc.value() or None)
-        elif kategori == "Menzil Aldatma":
-            teknik.parametreler = MenzilAldatmaParams(teknik_tipi=self.p_menzil_tip.currentText(),
-                                                      cekme_hizi_mps=self.p_menzil_hiz.value() or None,
-                                                      sahte_hedef_sayisi=self.p_menzil_sayi.value() or None)
-        elif kategori == "Alıcı/Gönderici Ayarları":
-            teknik.parametreler = AlmacGondermecAyarParametreleri(
-                on_ornekleme_frekansi_ghz=self.p_ag_ornek_freq.value() or None,
-                rf_kazanc_db=self.p_ag_rf_kazanc.value() or None, if_kazanc_db=self.p_ag_if_kazanc.value() or None,
-                faz_kaydirma_derece=self.p_ag_faz_kaydirma.value() or None,
-                otomatik_kazanc_kontrolu_aktif=self.p_ag_agc_aktif.isChecked(),
-                gonderici_guc_dbm=self.p_ag_gonderici_guc.value() or None,
-                modulasyon_tipi=self.p_ag_mod_tipi.currentText(), veri_hizi_mbps=self.p_ag_veri_hizi.value() or None)
-        elif kategori == "Kaynak Üreteç Ayarları":
-            teknik.parametreler = KaynakUretecAyarParametreleri(dalga_formu_tipi=self.p_ku_dalga_formu.currentText(),
-                                                                baslangic_frekansi_mhz=self.p_ku_bas_freq.value() or None,
-                                                                bitis_frekansi_mhz=self.p_ku_bit_freq.value() or None,
-                                                                tarama_suresi_ms=self.p_ku_tarama_sure.value() or None,
-                                                                darbe_genisligi_us=self.p_ku_darbe_gen.value() or None,
-                                                                darbe_tekrarlama_araligi_us=self.p_ku_dta.value() or None,
-                                                                faz_gurultusu_dbc_hz=self.p_ku_faz_gurultu.value() or None,
-                                                                harmonik_baski_db=self.p_ku_harmonik.value() or None)
-        else:
-            teknik.parametreler = BaseTeknikParametreleri()
-        self.vm.save_item(teknik)
-        QMessageBox.information(self, "Başarılı", f"'{teknik.adi}' tekniği kaydedildi.")
+        try:
+            updated_teknik = self.teknik_form_widget.get_data_from_form()
+            if not updated_teknik.adi:
+                QMessageBox.warning(self, "Eksik Bilgi", "Teknik adı boş olamaz.")
+                return
+            if not updated_teknik.platform_id:
+                QMessageBox.warning(self, "Eksik Bilgi", "Lütfen teknik için bir platform seçin.")
+                return
+
+            updated_teknik.teknik_id = self.current_item.teknik_id
+            self.current_item = updated_teknik
+            self.vm.save_item(self.current_item)
+            QMessageBox.information(self, "Başarılı", f"'{self.current_item.adi}' tekniği kaydedildi.")
+        except Exception as e:
+            QMessageBox.critical(self, "Hata", f"Teknik kaydedilirken bir hata oluştu: {e}")

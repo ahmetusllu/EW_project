@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex
 from typing import List, Any, Dict
-from core.data_models import Teknik, Radar, Senaryo, Gorev
+from core.data_models import ETPlatformu, Teknik, Radar, Senaryo, Gorev
 
 
 class BaseTableModel(QAbstractTableModel):
@@ -36,10 +36,23 @@ class BaseTableModel(QAbstractTableModel):
             return self._data[index.row()]
         return None
 
-    def refresh_data(self, new_data: List[Any]):
+    def refresh_data(self, new_data: List[Any], **kwargs):
         self.beginResetModel()
         self._data = new_data
+        self._handle_extra_args(**kwargs)
         self.endResetModel()
+
+    def _handle_extra_args(self, **kwargs):
+        pass # Alt sınıflar override edebilir
+
+
+class PlatformTableModel(BaseTableModel):
+    def __init__(self, data: List[ETPlatformu] = None):
+        super().__init__(data)
+        self._headers = ["Platform Adı", "Açıklama"]
+
+    def get_display_data(self, item: ETPlatformu, column: int) -> str:
+        return [item.adi, item.aciklama][column]
 
 
 class RadarTableModel(BaseTableModel):
@@ -54,29 +67,45 @@ class RadarTableModel(BaseTableModel):
 class TeknikTableModel(BaseTableModel):
     def __init__(self, data: List[Teknik] = None):
         super().__init__(data)
-        self._headers = ["Adı", "Kategori"]
+        self._headers = ["Adı", "Kategori", "İlişkili Platform"]
+        self._platform_map = {}
 
     def get_display_data(self, item: Teknik, column: int) -> str:
-        return [item.adi, item.kategori][column]
+        platform_adi = self._platform_map.get(item.platform_id, "Belirtilmemiş")
+        return [item.adi, item.kategori, platform_adi][column]
+
+    def _handle_extra_args(self, **kwargs):
+        if 'platform_map' in kwargs:
+            self._platform_map = kwargs['platform_map']
 
 
 class SenaryoTableModel(BaseTableModel):
     def __init__(self, data: List[Senaryo] = None):
         super().__init__(data)
-        self._headers = ["Senaryo Adı", "Tarih", "Konum", "Sonuç"]
+        self._headers = ["Senaryo Adı", "Tarih", "Platform", "Hedef Radar", "Sonuç"]
+        self._platform_map = {}
+        self._radar_map = {}
 
     def get_display_data(self, item: Senaryo, column: int) -> str:
-        return [item.adi, item.tarih_iso, item.konum, item.sonuc_nitel][column]
+        platform_adi = self._platform_map.get(item.et_platformu_id, "Bilinmiyor")
+        radar_adi = self._radar_map.get(item.radar_id, "Bilinmiyor")
+        return [item.adi, item.tarih_iso, platform_adi, radar_adi, item.sonuc_nitel][column]
+
+    def _handle_extra_args(self, **kwargs):
+        if 'platform_map' in kwargs:
+            self._platform_map = kwargs['platform_map']
+        if 'radar_map' in kwargs:
+            self._radar_map = kwargs['radar_map']
 
 
 class GorevTableModel(BaseTableModel):
     def __init__(self, data: List[Gorev] = None):
         super().__init__(data)
-        self._headers = ["Görev Adı", "Oluşturma Tarihi", "Sorumlu Personel", "Senaryo Sayısı"]
+        self._headers = ["Görev Adı", "Görev Tarihi", "Sorumlu Personel", "Senaryo Sayısı"]
 
     def get_display_data(self, item: Gorev, column: int) -> str:
         if column == 0: return item.adi
-        if column == 1: return item.olusturma_tarihi_iso
+        if column == 1: return item.gorev_tarihi_iso
         if column == 2: return item.sorumlu_personel
         if column == 3: return str(len(item.senaryo_id_list))
         return ""
@@ -99,9 +128,7 @@ class GorevSenaryoTableModel(QAbstractTableModel):
             if col == 1:
                 return self._radar_map.get(senaryo.radar_id, "Bilinmiyor")
             if col == 2:
-                # GÜNCELLENDİ: Teknikleri sırası ve süresiyle birlikte göster
                 teknik_strings = []
-                # Teknikleri sırasına göre sırala
                 sorted_uygulamalar = sorted(senaryo.uygulanan_teknikler, key=lambda u: u.sira)
                 for uygulama in sorted_uygulamalar:
                     teknik_adi = self._teknik_map.get(uygulama.teknik_id, "Bilinmeyen Teknik")
